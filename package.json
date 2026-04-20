@@ -1,0 +1,23 @@
+{
+  "name": "diamond-chicken-pos",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Production-grade POS system for Diamond Chicken fast food restaurant in Zimbabwe",
+  "workspaces": [
+    "backend",
+    "frontend",
+    "shared"
+  ],
+  "scripts": {
+    "dev:backend": "npm run dev --workspace=backend",
+    "dev:frontend": "npm run dev --workspace=frontend",
+    "build:backend": "npm run build --workspace=backend",
+    "build:frontend": "npm run build --workspace=frontend",
+    "build": "npm run build:backend && npm run build:frontend",
+    "lint": "npm run lint --workspaces",
+    "type-check": "npm run type-check --workspaces"
+  },
+  "keywords": ["pos", "restaurant", "zimbabwe", "point-of-sale"],
+  "author": "Diamond Chicken",
+  "license": "UNLICENSED"
+}
