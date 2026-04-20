@@ -1,14 +1,17 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Search, ShoppingCart, Plus, Minus, Trash2 } from 'lucide-react';
+import { Search, ShoppingCart, Plus, Minus, Trash2, LogOut } from 'lucide-react';
 import { menuApi, categoriesApi } from '../services/api';
 import { useCartStore } from '../stores/cartStore';
 import { useAuthStore } from '../stores/authStore';
+import PaymentModal from '../components/PaymentModal';
 
 export default function POSPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const { user } = useAuthStore();
+  const [paymentOpen, setPaymentOpen] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+  const { user, logout } = useAuthStore();
   const cart = useCartStore();
 
   const { data: categories } = useQuery({
@@ -49,10 +52,37 @@ export default function POSPage() {
           <span className="text-text-secondary">|</span>
           <span className="text-text-secondary">{user?.name}</span>
         </div>
-        <div className="text-text-secondary text-sm">
-          {new Date().toLocaleTimeString()}
+        <div className="flex items-center gap-4">
+          <div className="text-text-secondary text-sm">
+            {new Date().toLocaleTimeString()}
+          </div>
+          <button
+            onClick={logout}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg glass hover:bg-surface-2 text-text-secondary text-sm"
+          >
+            <LogOut className="w-4 h-4" /> Logout
+          </button>
         </div>
       </div>
+
+      {toast && (
+        <div className="fixed top-20 right-6 z-40 bg-success/20 border border-success text-success px-6 py-3 rounded-xl shadow-lg">
+          {toast}
+        </div>
+      )}
+
+      <PaymentModal
+        open={paymentOpen}
+        onClose={() => setPaymentOpen(false)}
+        onSuccess={(orderNumber, change) => {
+          setPaymentOpen(false);
+          const msg = change && change > 0
+            ? `Order ${orderNumber} sent • Change $${change.toFixed(2)}`
+            : `Order ${orderNumber} sent to kitchen`;
+          setToast(msg);
+          setTimeout(() => setToast(null), 5000);
+        }}
+      />
 
       <div className="flex-1 flex overflow-hidden">
         <div className="flex-1 flex flex-col p-6 space-y-4">
@@ -180,6 +210,7 @@ export default function POSPage() {
 
             <button
               disabled={cart.items.length === 0}
+              onClick={() => setPaymentOpen(true)}
               className="w-full py-4 bg-primary text-background font-display font-bold text-lg rounded-xl hover:bg-primary/90 transition-all amber-glow disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Charge ${cart.getTotal().toFixed(2)} →

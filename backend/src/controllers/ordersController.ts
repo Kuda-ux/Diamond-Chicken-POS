@@ -149,7 +149,13 @@ export async function getOrders(req: AuthRequest, res: Response) {
   try {
     const { date, status, cashierId, paymentMethod } = req.query;
 
-    let query = sql`
+    // Normalize filters to null so SQL COALESCE predicates work
+    const dateFilter = (date as string) || null;
+    const statusFilter = (status as string) || null;
+    const cashierFilter = (cashierId as string) || null;
+    const paymentFilter = (paymentMethod as string) || null;
+
+    const orders = await sql`
       SELECT 
         o.id, o.order_number as "orderNumber", o.cashier_id as "cashierId",
         o.status, o.order_type as "orderType", o.table_number as "tableNumber",
@@ -160,28 +166,18 @@ export async function getOrders(req: AuthRequest, res: Response) {
         u.name as "cashierName"
       FROM orders o
       LEFT JOIN users u ON o.cashier_id = u.id
-      WHERE 1=1
+      WHERE 
+        (${dateFilter}::date IS NULL OR DATE(o.created_at) = ${dateFilter}::date)
+        AND (${statusFilter}::text IS NULL OR o.status = ${statusFilter}::text)
+        AND (${cashierFilter}::uuid IS NULL OR o.cashier_id = ${cashierFilter}::uuid)
+        AND (${paymentFilter}::text IS NULL OR o.payment_method = ${paymentFilter}::text)
+      ORDER BY o.created_at DESC
+      LIMIT 100
     `;
-
-    if (date) {
-      query = sql`${query} AND DATE(o.created_at) = ${date as string}`;
-    }
-    if (status) {
-      query = sql`${query} AND o.status = ${status as string}`;
-    }
-    if (cashierId) {
-      query = sql`${query} AND o.cashier_id = ${cashierId as string}`;
-    }
-    if (paymentMethod) {
-      query = sql`${query} AND o.payment_method = ${paymentMethod as string}`;
-    }
-
-    query = sql`${query} ORDER BY o.created_at DESC LIMIT 100`;
-
-    const orders = await query;
 
     return successResponse(res, orders);
   } catch (error) {
+    console.error('Get orders error:', error);
     return errorResponse(res, 'Failed to fetch orders', 500);
   }
 }
