@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Search, ShoppingCart, Plus, Minus, Trash2, LogOut, Bell, Lock, PlayCircle } from 'lucide-react';
+import {
+  Search, ShoppingCart, Plus, Minus, Trash2, LogOut, Bell, Lock, PlayCircle,
+  Diamond, X, Sparkles,
+} from 'lucide-react';
 import { menuApi, categoriesApi, shiftsApi } from '../services/api';
 import { useCartStore } from '../stores/cartStore';
 import { useAuthStore } from '../stores/authStore';
@@ -9,6 +12,17 @@ import ShiftCloseModal from '../components/ShiftCloseModal';
 import { getSocket, joinRoom } from '../services/socket';
 
 const LOW_STOCK_THRESHOLD = 10;
+
+const CATEGORY_EMOJI: Record<string, string> = {
+  chicken: '🍗', burger: '🍔', sides: '🍟', drinks: '🥤',
+  dessert: '🍰', salad: '🥗', rice: '🍛', pizza: '🍕',
+};
+
+function emojiForItem(name: string, categoryName?: string): string {
+  const n = (categoryName || name).toLowerCase();
+  for (const [k, v] of Object.entries(CATEGORY_EMOJI)) if (n.includes(k)) return v;
+  return '🍴';
+}
 
 export default function POSPage() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -19,9 +33,15 @@ export default function POSPage() {
   const [shiftCloseOpen, setShiftCloseOpen] = useState(false);
   const [openingFloat, setOpeningFloat] = useState('');
   const [shiftLoading, setShiftLoading] = useState(false);
+  const [now, setNow] = useState(Date.now());
   const { user, logout } = useAuthStore();
   const cart = useCartStore();
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
 
   const { data: currentShift, refetch: refetchShift } = useQuery({
     queryKey: ['current-shift'],
@@ -36,58 +56,40 @@ export default function POSPage() {
       await shiftsApi.open(val);
       await refetchShift();
       setOpeningFloat('');
-    } finally {
-      setShiftLoading(false);
-    }
+    } finally { setShiftLoading(false); }
   };
 
   // Socket.IO: listen for order:ready
   useEffect(() => {
     const socket = getSocket();
     joinRoom('cashiers');
-
     const onReady = (order: any) => {
-      const msg = `🔔 Order ${order.orderNumber} is READY for pickup`;
+      const msg = `Order ${order.orderNumber} is READY for pickup`;
       setReadyAlerts((prev) => [msg, ...prev].slice(0, 5));
-      // Beep using WebAudio
       try {
         const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.frequency.value = 880;
-        gain.gain.value = 0.1;
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.frequency.value = 880; gain.gain.value = 0.1;
         osc.start();
         setTimeout(() => { osc.stop(); ctx.close(); }, 200);
       } catch { /* noop */ }
     };
-
     socket.on('order:ready', onReady);
-    // Refresh menu stock when orders happen
     const refreshMenu = () => queryClient.invalidateQueries({ queryKey: ['menu'] });
     socket.on('order:new', refreshMenu);
-
-    return () => {
-      socket.off('order:ready', onReady);
-      socket.off('order:new', refreshMenu);
-    };
+    return () => { socket.off('order:ready', onReady); socket.off('order:new', refreshMenu); };
   }, [queryClient]);
 
   const { data: categories } = useQuery({
     queryKey: ['categories'],
-    queryFn: async () => {
-      const res = await categoriesApi.getAll();
-      return res.data.data;
-    },
+    queryFn: async () => (await categoriesApi.getAll()).data.data,
   });
 
   const { data: menu } = useQuery({
     queryKey: ['menu'],
-    queryFn: async () => {
-      const res = await menuApi.getAll();
-      return res.data.data;
-    },
+    queryFn: async () => (await menuApi.getAll()).data.data,
   });
 
   const filteredMenu = menu?.filter((item: any) => {
@@ -105,76 +107,93 @@ export default function POSPage() {
     const stock = getStock(item);
     if (stock !== null && stock <= 0) {
       setToast(`${item.name} is out of stock`);
-      setTimeout(() => setToast(null), 3000);
+      setTimeout(() => setToast(null), 2500);
       return;
     }
-    // Check already-in-cart count vs stock
     const existing = cart.items.find((i) => i.menuItemId === item.id);
     const nextQty = (existing?.quantity || 0) + 1;
     if (stock !== null && nextQty > stock) {
       setToast(`Only ${stock} of ${item.name} left`);
-      setTimeout(() => setToast(null), 3000);
+      setTimeout(() => setToast(null), 2500);
       return;
     }
-    cart.addItem({
-      menuItemId: item.id,
-      name: item.name,
-      price: item.price,
-    });
+    cart.addItem({ menuItemId: item.id, name: item.name, price: item.price });
   };
 
+  const categoryNameById = (id: string) => categories?.find((c: any) => c.id === id)?.name;
+
   return (
-    <div className="h-screen flex flex-col bg-background">
-      <div className="h-14 bg-surface border-b border-border flex items-center justify-between px-6">
+    <div className="h-screen flex flex-col overflow-hidden">
+      {/* ---------- Top bar ---------- */}
+      <header className="h-16 backdrop-blur-xl bg-background/70 border-b border-border flex items-center justify-between px-6 flex-shrink-0 z-30">
         <div className="flex items-center gap-4">
-          <span className="font-display text-xl font-bold text-primary">◆ Diamond Chicken</span>
-          <span className="text-text-secondary">|</span>
-          <span className="text-text-secondary">{user?.name}</span>
-        </div>
-        <div className="flex items-center gap-4">
-          <div className="text-text-secondary text-sm">
-            {new Date().toLocaleTimeString()}
+          <div className="w-9 h-9 rounded-xl bg-brand flex items-center justify-center amber-glow-soft">
+            <Diamond className="w-5 h-5 text-background" fill="currentColor" strokeWidth={2.5} />
           </div>
-          {currentShift ? (
+          <div>
+            <p className="font-display text-sm font-bold text-text-primary leading-none">Diamond Chicken</p>
+            <p className="text-[10px] text-text-muted mt-1 flex items-center gap-1.5">
+              <span className="dot dot-live" /> Point of Sale
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="hidden md:block text-xs text-text-secondary tabular-nums font-mono">
+            {new Date(now).toLocaleTimeString()}
+          </div>
+          <div className="hidden md:flex items-center gap-2 px-2.5 py-1.5 glass rounded-xl">
+            <div className="w-7 h-7 rounded-full bg-brand flex items-center justify-center font-display font-bold text-background text-xs">
+              {user?.name?.[0]?.toUpperCase() || 'C'}
+            </div>
+            <div className="text-xs leading-tight">
+              <p className="font-semibold text-text-primary">{user?.name}</p>
+              <p className="text-text-muted capitalize text-[10px]">{user?.role}</p>
+            </div>
+          </div>
+          {currentShift && (
             <button
               onClick={() => setShiftCloseOpen(true)}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-secondary/10 border border-secondary/30 hover:bg-secondary/20 text-secondary text-sm font-semibold"
+              className="btn btn-ghost text-sm border-secondary/30 text-secondary hover:bg-secondary-soft"
+              style={{ borderColor: 'rgba(255,107,53,0.3)' }}
             >
               <Lock className="w-4 h-4" /> Close Shift
             </button>
-          ) : null}
-          <button
-            onClick={logout}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg glass hover:bg-surface-2 text-text-secondary text-sm"
-          >
+          )}
+          <button onClick={logout} className="btn btn-ghost text-sm">
             <LogOut className="w-4 h-4" /> Logout
           </button>
         </div>
-      </div>
+      </header>
 
-      {/* Start Shift prompt */}
+      {/* ---------- Start shift prompt ---------- */}
       {!currentShift && (
-        <div className="bg-info/10 border-b border-info/30 px-6 py-3 flex items-center justify-between">
+        <div className="bg-info-soft border-b border-info/20 px-6 py-3 flex items-center justify-between flex-shrink-0 animate-slide-up">
           <div className="flex items-center gap-3">
-            <PlayCircle className="w-5 h-5 text-info" />
+            <div className="w-9 h-9 rounded-lg bg-info/15 border border-info/30 flex items-center justify-center">
+              <PlayCircle className="w-5 h-5 text-info" />
+            </div>
             <div>
-              <p className="text-sm font-semibold text-text-primary">Start your shift</p>
-              <p className="text-xs text-text-secondary">Enter your opening cash float to begin</p>
+              <p className="text-sm font-semibold text-text-primary">Start your shift to begin taking orders</p>
+              <p className="text-xs text-text-muted">Enter your opening cash float.</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <input
-              type="number"
-              step="0.01"
-              value={openingFloat}
-              onChange={(e) => setOpeningFloat(e.target.value)}
-              placeholder="Opening float $"
-              className="px-3 py-2 w-40 bg-surface border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-info text-sm"
-            />
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted text-sm font-semibold">$</span>
+              <input
+                type="number"
+                step="0.01"
+                value={openingFloat}
+                onChange={(e) => setOpeningFloat(e.target.value)}
+                placeholder="0.00"
+                className="input pl-7 w-36 h-10"
+                onKeyDown={(e) => e.key === 'Enter' && handleOpenShift()}
+              />
+            </div>
             <button
               onClick={handleOpenShift}
               disabled={shiftLoading || !openingFloat}
-              className="px-4 py-2 bg-info text-background font-semibold rounded-lg hover:bg-info/90 disabled:opacity-50 text-sm"
+              className="btn btn-primary h-10 text-sm"
             >
               {shiftLoading ? 'Opening…' : 'Start Shift'}
             </button>
@@ -185,33 +204,39 @@ export default function POSPage() {
       <ShiftCloseModal
         open={shiftCloseOpen}
         onClose={() => setShiftCloseOpen(false)}
-        onClosed={() => {
-          setShiftCloseOpen(false);
-          refetchShift();
-        }}
+        onClosed={() => { setShiftCloseOpen(false); refetchShift(); }}
       />
 
+      {/* Toast */}
       {toast && (
-        <div className="fixed top-20 right-6 z-40 bg-success/20 border border-success text-success px-6 py-3 rounded-xl shadow-lg">
-          {toast}
+        <div className="fixed top-20 right-6 z-40 animate-slide-up">
+          <div className="glass-elevated rounded-xl px-5 py-3 flex items-center gap-3 border-danger/30" style={{ borderColor: 'rgba(239,68,68,0.3)' }}>
+            <span className="w-2 h-2 rounded-full bg-danger animate-pulse" />
+            <span className="text-sm font-semibold text-text-primary">{toast}</span>
+          </div>
         </div>
       )}
 
+      {/* Ready alerts */}
       {readyAlerts.length > 0 && (
         <div className="fixed bottom-6 right-6 z-40 space-y-2 max-w-sm">
           {readyAlerts.map((alert, i) => (
             <div
               key={`${alert}-${i}`}
-              className="flex items-start gap-3 bg-primary/20 border border-primary text-text-primary px-4 py-3 rounded-xl shadow-xl amber-glow animate-pulse"
+              className="flex items-start gap-3 glass-elevated rounded-2xl px-4 py-3 amber-glow animate-slide-up"
+              style={{ borderColor: 'rgba(245,166,35,0.4)' }}
             >
-              <Bell className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
-              <div className="flex-1 text-sm font-medium">{alert}</div>
+              <div className="w-9 h-9 rounded-lg bg-primary-soft border border-primary/30 flex items-center justify-center flex-shrink-0">
+                <Bell className="w-4 h-4 text-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] text-primary font-bold uppercase tracking-wider">Ready for pickup</p>
+                <p className="text-sm font-semibold text-text-primary mt-0.5">{alert}</p>
+              </div>
               <button
                 onClick={() => setReadyAlerts((prev) => prev.filter((_, idx) => idx !== i))}
-                className="text-text-muted hover:text-text-primary text-xs"
-              >
-                ✕
-              </button>
+                className="text-text-muted hover:text-text-primary"
+              ><X className="w-4 h-4" /></button>
             </div>
           ))}
         </div>
@@ -226,134 +251,172 @@ export default function POSPage() {
             ? `Order ${orderNumber} sent • Change $${change.toFixed(2)}`
             : `Order ${orderNumber} sent to kitchen`;
           setToast(msg);
-          setTimeout(() => setToast(null), 5000);
+          setTimeout(() => setToast(null), 4000);
         }}
       />
 
+      {/* ---------- Main ---------- */}
       <div className="flex-1 flex overflow-hidden">
-        <div className="flex-1 flex flex-col p-6 space-y-4">
+        {/* LEFT: menu */}
+        <div className="flex-1 flex flex-col p-6 space-y-4 overflow-hidden">
+          {/* Search */}
           <div className="relative">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-text-muted" />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-text-muted pointer-events-none" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search menu items..."
-              className="w-full pl-12 pr-4 py-3 bg-surface border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-text-primary"
+              className="input pl-12 py-3.5"
             />
-          </div>
-
-          <div className="flex gap-2 overflow-x-auto scrollbar-hide">
-            <button
-              onClick={() => setSelectedCategory('all')}
-              className={`px-6 py-2 rounded-lg font-medium whitespace-nowrap transition-all ${
-                selectedCategory === 'all'
-                  ? 'bg-primary text-background'
-                  : 'glass text-text-secondary hover:text-text-primary'
-              }`}
-            >
-              All
-            </button>
-            {categories?.map((cat: any) => (
+            {searchQuery && (
               <button
-                key={cat.id}
-                onClick={() => setSelectedCategory(cat.id)}
-                className={`px-6 py-2 rounded-lg font-medium whitespace-nowrap transition-all ${
-                  selectedCategory === cat.id
-                    ? 'bg-primary text-background'
-                    : 'glass text-text-secondary hover:text-primary'
-                }`}
-              >
-                {cat.icon} {cat.name}
-              </button>
-            ))}
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 w-7 h-7 rounded-lg hover:bg-surface-2 flex items-center justify-center text-text-muted"
+              ><X className="w-4 h-4" /></button>
+            )}
           </div>
 
-          <div className="flex-1 overflow-y-auto">
-            <div className="grid grid-cols-3 gap-4">
-              {filteredMenu?.map((item: any) => {
-                const stock = getStock(item);
-                const threshold = Number(item.lowStockThreshold ?? item.low_stock_threshold ?? LOW_STOCK_THRESHOLD);
-                const outOfStock = stock !== null && stock <= 0;
-                const lowStock = stock !== null && stock > 0 && stock <= threshold;
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => handleAddToCart(item)}
-                    disabled={outOfStock}
-                    className={`relative glass rounded-xl p-4 transition-all text-left ${
-                      outOfStock
-                        ? 'opacity-40 cursor-not-allowed grayscale'
-                        : 'hover:bg-primary/10 active:scale-95'
-                    }`}
-                  >
-                    {lowStock && (
-                      <span className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-secondary/20 border border-secondary text-secondary text-[10px] font-bold uppercase">
-                        Low
-                      </span>
-                    )}
-                    {outOfStock && (
-                      <span className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-danger/20 border border-danger text-danger text-[10px] font-bold uppercase">
-                        Out
-                      </span>
-                    )}
-                    <div className="text-4xl mb-2">🍗</div>
-                    <h3 className="font-display font-semibold text-text-primary mb-1">{item.name}</h3>
-                    <p className="text-primary font-bold">${parseFloat(item.price).toFixed(2)}</p>
-                    {stock !== null && (
-                      <p className={`text-xs mt-2 ${outOfStock ? 'text-danger' : lowStock ? 'text-secondary' : 'text-success'}`}>
-                        Stock: {stock}
-                      </p>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
+          {/* Categories */}
+          <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
+            <CategoryPill
+              active={selectedCategory === 'all'}
+              onClick={() => setSelectedCategory('all')}
+              icon="✨"
+              label="All"
+              count={menu?.length}
+            />
+            {categories?.map((cat: any) => {
+              const count = menu?.filter((m: any) => m.categoryId === cat.id).length;
+              return (
+                <CategoryPill
+                  key={cat.id}
+                  active={selectedCategory === cat.id}
+                  onClick={() => setSelectedCategory(cat.id)}
+                  icon={cat.icon || emojiForItem(cat.name)}
+                  label={cat.name}
+                  count={count}
+                />
+              );
+            })}
+          </div>
+
+          {/* Grid */}
+          <div className="flex-1 overflow-y-auto -mr-4 pr-4">
+            {!menu ? (
+              <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <div key={i} className="shimmer rounded-2xl h-40" />
+                ))}
+              </div>
+            ) : filteredMenu?.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center text-center">
+                <div className="w-20 h-20 rounded-full bg-surface-2 flex items-center justify-center mb-4 text-4xl">🔎</div>
+                <p className="font-display text-lg font-semibold text-text-primary mb-1">No items match</p>
+                <p className="text-sm text-text-muted">Try a different search or category</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
+                {filteredMenu?.map((item: any) => {
+                  const stock = getStock(item);
+                  const threshold = Number(item.lowStockThreshold ?? item.low_stock_threshold ?? LOW_STOCK_THRESHOLD);
+                  const outOfStock = stock !== null && stock <= 0;
+                  const lowStock = stock !== null && stock > 0 && stock <= threshold;
+                  const inCart = cart.items.find((i) => i.menuItemId === item.id);
+                  const emoji = emojiForItem(item.name, categoryNameById(item.categoryId));
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => handleAddToCart(item)}
+                      disabled={outOfStock}
+                      className={`relative card card-interactive p-4 text-left overflow-hidden ${outOfStock ? 'opacity-40 grayscale cursor-not-allowed' : ''}`}
+                    >
+                      {/* subtle gradient wash */}
+                      <div className="absolute -right-6 -top-6 w-24 h-24 rounded-full bg-brand opacity-10 blur-2xl pointer-events-none" />
+                      <div className="relative z-10 flex items-start justify-between mb-3">
+                        <div className="text-4xl drop-shadow-sm">{emoji}</div>
+                        {outOfStock ? (
+                          <span className="chip chip-danger">Out</span>
+                        ) : lowStock ? (
+                          <span className="chip chip-warn">Low</span>
+                        ) : inCart ? (
+                          <span className="chip chip-primary">×{inCart.quantity}</span>
+                        ) : null}
+                      </div>
+                      <h3 className="relative z-10 font-display font-semibold text-text-primary text-sm leading-tight mb-1 line-clamp-2 min-h-[2.5rem]">
+                        {item.name}
+                      </h3>
+                      <div className="relative z-10 flex items-end justify-between mt-2">
+                        <p className="font-display text-xl font-bold text-gradient">${parseFloat(item.price).toFixed(2)}</p>
+                        {stock !== null && (
+                          <span className={`text-[10px] font-semibold uppercase tracking-wider ${
+                            outOfStock ? 'text-danger' : lowStock ? 'text-secondary' : 'text-text-muted'
+                          }`}>
+                            {stock} left
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
 
-        <div className="w-96 bg-surface border-l border-border flex flex-col">
-          <div className="p-6 border-b border-border">
+        {/* RIGHT: cart */}
+        <aside className="w-[400px] bg-surface/60 backdrop-blur-xl border-l border-border flex flex-col flex-shrink-0">
+          <div className="p-6 border-b border-border flex items-center justify-between">
             <h2 className="font-display text-xl font-bold flex items-center gap-2">
-              <ShoppingCart className="w-5 h-5" />
+              <ShoppingCart className="w-5 h-5 text-primary" />
               Current Order
             </h2>
+            {cart.items.length > 0 && (
+              <button
+                onClick={cart.clearCart}
+                className="text-xs text-text-muted hover:text-danger flex items-center gap-1"
+              >
+                <Trash2 className="w-3.5 h-3.5" /> Clear
+              </button>
+            )}
           </div>
 
-          <div className="flex-1 overflow-y-auto p-6 space-y-3">
+          <div className="flex-1 overflow-y-auto p-4 space-y-2">
             {cart.items.length === 0 ? (
-              <div className="text-center text-text-muted py-12">
-                <ShoppingCart className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                <p>No items yet</p>
+              <div className="h-full flex flex-col items-center justify-center text-center px-6">
+                <div className="w-20 h-20 rounded-2xl bg-surface-2 flex items-center justify-center mb-4">
+                  <ShoppingCart className="w-8 h-8 text-text-muted" />
+                </div>
+                <p className="font-display text-lg font-semibold text-text-primary mb-1">Empty cart</p>
+                <p className="text-sm text-text-muted">Tap items on the left to start building the order.</p>
+                <div className="mt-6 flex items-center gap-2 text-xs text-text-muted">
+                  <Sparkles className="w-3.5 h-3.5 text-primary" /> Orders sync to kitchen instantly
+                </div>
               </div>
             ) : (
               cart.items.map((item) => (
-                <div key={item.menuItemId} className="glass rounded-lg p-3 flex items-center gap-3">
-                  <div className="flex-1">
-                    <p className="font-medium text-text-primary">{item.name}</p>
-                    <p className="text-sm text-text-secondary">${parseFloat(item.price).toFixed(2)}</p>
+                <div key={item.menuItemId} className="glass rounded-2xl p-3 flex items-center gap-3 animate-scale-in">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-text-primary text-sm truncate">{item.name}</p>
+                    <p className="text-xs text-text-muted">
+                      ${parseFloat(item.price).toFixed(2)} × {item.quantity} = <span className="text-primary font-semibold">${(parseFloat(item.price) * item.quantity).toFixed(2)}</span>
+                    </p>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1 glass rounded-lg p-1">
                     <button
                       onClick={() => cart.updateQuantity(item.menuItemId, item.quantity - 1)}
-                      className="w-8 h-8 rounded-lg bg-surface-2 hover:bg-danger/20 flex items-center justify-center"
-                    >
-                      <Minus className="w-4 h-4" />
-                    </button>
-                    <span className="w-8 text-center font-bold">{item.quantity}</span>
+                      className="w-7 h-7 rounded-md hover:bg-danger-soft hover:text-danger flex items-center justify-center text-text-secondary transition-colors"
+                    ><Minus className="w-3.5 h-3.5" /></button>
+                    <span className="w-6 text-center font-bold text-sm tabular-nums">{item.quantity}</span>
                     <button
                       onClick={() => cart.updateQuantity(item.menuItemId, item.quantity + 1)}
-                      className="w-8 h-8 rounded-lg bg-surface-2 hover:bg-primary/20 flex items-center justify-center"
-                    >
-                      <Plus className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => cart.removeItem(item.menuItemId)}
-                      className="w-8 h-8 rounded-lg bg-surface-2 hover:bg-danger/20 flex items-center justify-center ml-2"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                      className="w-7 h-7 rounded-md hover:bg-primary-soft hover:text-primary flex items-center justify-center text-text-secondary transition-colors"
+                    ><Plus className="w-3.5 h-3.5" /></button>
                   </div>
+                  <button
+                    onClick={() => cart.removeItem(item.menuItemId)}
+                    className="w-8 h-8 rounded-lg hover:bg-danger-soft hover:text-danger flex items-center justify-center text-text-muted transition-colors"
+                  ><Trash2 className="w-4 h-4" /></button>
                 </div>
               ))
             )}
@@ -363,28 +426,52 @@ export default function POSPage() {
             <div className="space-y-2 text-sm">
               <div className="flex justify-between text-text-secondary">
                 <span>Subtotal</span>
-                <span>${cart.getSubtotal().toFixed(2)}</span>
+                <span className="tabular-nums">${cart.getSubtotal().toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-text-secondary">
-                <span>Tax (15%)</span>
-                <span>${cart.getTax().toFixed(2)}</span>
+                <span>VAT (15%)</span>
+                <span className="tabular-nums">${cart.getTax().toFixed(2)}</span>
               </div>
-              <div className="flex justify-between font-display text-xl font-bold text-primary">
-                <span>Total</span>
-                <span>${cart.getTotal().toFixed(2)}</span>
+              <div className="divider my-2" />
+              <div className="flex justify-between items-baseline font-display">
+                <span className="text-text-secondary text-sm uppercase tracking-wider">Total</span>
+                <span className="text-3xl font-bold text-gradient tabular-nums">${cart.getTotal().toFixed(2)}</span>
               </div>
             </div>
 
             <button
               disabled={cart.items.length === 0}
               onClick={() => setPaymentOpen(true)}
-              className="w-full py-4 bg-primary text-background font-display font-bold text-lg rounded-xl hover:bg-primary/90 transition-all amber-glow disabled:opacity-50 disabled:cursor-not-allowed"
+              className="btn btn-primary w-full py-4 text-lg"
             >
-              Charge ${cart.getTotal().toFixed(2)} →
+              {cart.items.length === 0 ? 'Add items to continue' : <>Charge ${cart.getTotal().toFixed(2)} <span className="opacity-70">→</span></>}
             </button>
           </div>
-        </div>
+        </aside>
       </div>
     </div>
+  );
+}
+
+function CategoryPill({
+  active, onClick, icon, label, count,
+}: { active: boolean; onClick: () => void; icon: string; label: string; count?: number }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`group px-4 py-2.5 rounded-xl font-medium whitespace-nowrap transition-all flex items-center gap-2 ${
+        active
+          ? 'bg-brand text-background amber-glow scale-105'
+          : 'glass text-text-secondary hover:text-text-primary hover:border-primary/30'
+      }`}
+    >
+      <span className="text-base">{icon}</span>
+      <span className="text-sm font-semibold">{label}</span>
+      {count !== undefined && (
+        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${active ? 'bg-background/20' : 'bg-surface-2'}`}>
+          {count}
+        </span>
+      )}
+    </button>
   );
 }

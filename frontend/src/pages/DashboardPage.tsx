@@ -3,62 +3,54 @@ import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   DollarSign, ShoppingBag, TrendingUp, Package, AlertTriangle,
-  LogOut, Boxes,
+  LogOut, Boxes, Diamond, Activity, Flame,
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend,
+  PieChart, Pie, Cell,
 } from 'recharts';
 import { statsApi } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 import { getSocket, joinRoom } from '../services/socket';
 
-const METHOD_COLORS: Record<string, string> = {
-  cash: '#10b981',
-  ecocash: '#3b82f6',
-  innbucks: '#a855f7',
-  zipit: '#06b6d4',
-  visa: '#f97316',
-  mastercard: '#f59e0b',
-  unpaid: '#6b7280',
+const METHOD_META: Record<string, { color: string; label: string }> = {
+  cash: { color: '#22C55E', label: 'Cash' },
+  ecocash: { color: '#3B82F6', label: 'EcoCash' },
+  innbucks: { color: '#A855F7', label: 'InnBucks' },
+  zipit: { color: '#06B6D4', label: 'ZIPIT' },
+  visa: { color: '#F97316', label: 'Visa' },
+  mastercard: { color: '#F59E0B', label: 'Mastercard' },
+  unpaid: { color: '#52525B', label: 'Unpaid' },
 };
 
-const STATUS_COLORS: Record<string, string> = {
-  pending: 'text-text-muted',
-  confirmed: 'text-info',
-  preparing: 'text-secondary',
-  ready: 'text-primary',
-  completed: 'text-success',
-  cancelled: 'text-danger',
+const STATUS_META: Record<string, { color: string; label: string }> = {
+  pending: { color: 'text-text-muted', label: 'Pending' },
+  confirmed: { color: 'text-info', label: 'Confirmed' },
+  preparing: { color: 'text-secondary', label: 'Preparing' },
+  ready: { color: 'text-primary', label: 'Ready' },
+  completed: { color: 'text-success', label: 'Completed' },
+  cancelled: { color: 'text-danger', label: 'Cancelled' },
 };
 
-function formatMoney(v: number | string | undefined): string {
-  const n = typeof v === 'string' ? parseFloat(v) : (v || 0);
-  return `$${n.toFixed(2)}`;
-}
+const money = (v: number | string | undefined) =>
+  `$${(typeof v === 'string' ? parseFloat(v) : (v || 0)).toFixed(2)}`;
 
-function formatTime(iso: string): string {
+const formatTime = (iso: string) => {
   const d = new Date(iso);
-  const h = d.getHours().toString().padStart(2, '0');
-  const m = d.getMinutes().toString().padStart(2, '0');
-  return `${h}:${m}`;
-}
+  return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+};
 
 export default function DashboardPage() {
   const { user, logout } = useAuthStore();
   const queryClient = useQueryClient();
 
-  // Real-time: refresh stats on any order event
   useEffect(() => {
     const socket = getSocket();
     joinRoom('managers');
     const refresh = () => queryClient.invalidateQueries({ queryKey: ['stats'] });
     socket.on('order:new', refresh);
     socket.on('order:updated', refresh);
-    return () => {
-      socket.off('order:new', refresh);
-      socket.off('order:updated', refresh);
-    };
+    return () => { socket.off('order:new', refresh); socket.off('order:updated', refresh); };
   }, [queryClient]);
 
   const { data, isLoading } = useQuery({
@@ -68,171 +60,293 @@ export default function DashboardPage() {
   });
 
   const summary = data?.summary || {};
-  const hourlyRevenue = data?.hourlyRevenue || [];
-  const paymentBreakdown = data?.paymentBreakdown || [];
-  const recentOrders = data?.recentOrders || [];
-  const lowStock = data?.lowStock || [];
+  const hourlyRevenue: any[] = data?.hourlyRevenue || [];
+  const paymentBreakdown: any[] = data?.paymentBreakdown || [];
+  const recentOrders: any[] = data?.recentOrders || [];
+  const lowStock: any[] = data?.lowStock || [];
 
-  // Pad hourly to full 24h for nicer chart
   const hourlyPadded = Array.from({ length: 24 }, (_, h) => {
-    const found = hourlyRevenue.find((r: any) => r.hour === h);
-    return { hour: `${h.toString().padStart(2, '0')}h`, revenue: found?.revenue || 0, orders: found?.orders || 0 };
+    const found = hourlyRevenue.find((r) => r.hour === h);
+    return {
+      hour: h.toString().padStart(2, '0'),
+      revenue: found?.revenue || 0,
+      orders: found?.orders || 0,
+    };
   });
 
+  const currentHour = new Date().getHours();
+  const totalPayments = paymentBreakdown.reduce((s, p) => s + (p.revenue || 0), 0) || 1;
+
   return (
-    <div className="min-h-screen bg-background p-6">
-      <div className="mb-8 flex items-center justify-between">
-        <div>
-          <h1 className="font-display text-4xl font-bold text-gradient mb-1">Manager Dashboard</h1>
-          <p className="text-text-secondary">Welcome back, {user?.name} • Live data</p>
+    <div className="min-h-screen">
+      {/* ---------- Top bar ---------- */}
+      <header className="sticky top-0 z-30 backdrop-blur-xl bg-background/70 border-b border-border">
+        <div className="max-w-[1600px] mx-auto px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-brand flex items-center justify-center amber-glow-soft">
+              <Diamond className="w-5 h-5 text-background" fill="currentColor" strokeWidth={2.5} />
+            </div>
+            <div>
+              <h1 className="font-display text-xl font-bold text-text-primary leading-none">Diamond Chicken</h1>
+              <p className="text-xs text-text-muted mt-1 flex items-center gap-1.5">
+                <span className="dot dot-live" /> Live data • refreshing every 15s
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="hidden md:flex items-center gap-3 px-3 py-2 glass rounded-xl">
+              <div className="w-8 h-8 rounded-full bg-brand flex items-center justify-center font-display font-bold text-background text-sm">
+                {user?.name?.[0]?.toUpperCase() || 'U'}
+              </div>
+              <div className="text-xs">
+                <p className="font-semibold text-text-primary leading-none">{user?.name}</p>
+                <p className="text-text-muted mt-0.5 capitalize">{user?.role}</p>
+              </div>
+            </div>
+            <Link to="/inventory" className="btn btn-ghost text-sm">
+              <Boxes className="w-4 h-4" /> Inventory
+            </Link>
+            <button onClick={logout} className="btn btn-ghost text-sm">
+              <LogOut className="w-4 h-4" /> Logout
+            </button>
+          </div>
         </div>
-        <div className="flex items-center gap-3">
-          <Link
-            to="/inventory"
-            className="flex items-center gap-2 px-4 py-2 rounded-lg glass hover:bg-surface-2 text-text-primary text-sm font-semibold"
-          >
-            <Boxes className="w-4 h-4" /> Inventory
-          </Link>
-          <button
-            onClick={logout}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg glass hover:bg-surface-2 text-text-secondary text-sm"
-          >
-            <LogOut className="w-4 h-4" /> Logout
-          </button>
-        </div>
-      </div>
+      </header>
 
-      {/* KPI cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-        <KpiCard icon={<DollarSign className="w-6 h-6 text-primary" />} tint="primary" label="Today's Revenue" value={formatMoney(summary.totalRevenue)} loading={isLoading} />
-        <KpiCard icon={<ShoppingBag className="w-6 h-6 text-info" />} tint="info" label="Orders Today" value={`${summary.totalOrders || 0}`} loading={isLoading} />
-        <KpiCard icon={<TrendingUp className="w-6 h-6 text-success" />} tint="success" label="Avg. Order Value" value={formatMoney(summary.averageOrderValue)} loading={isLoading} />
-        <KpiCard icon={<Package className="w-6 h-6 text-secondary" />} tint="secondary" label="Items Sold" value={`${summary.totalItems || 0}`} loading={isLoading} />
-      </div>
-
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-        <div className="lg:col-span-2 glass rounded-2xl p-6">
-          <h2 className="font-display text-xl font-bold mb-4">Revenue by Hour</h2>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={hourlyPadded}>
-                <XAxis dataKey="hour" stroke="#6b7280" fontSize={11} />
-                <YAxis stroke="#6b7280" fontSize={11} tickFormatter={(v) => `$${v}`} />
-                <Tooltip
-                  contentStyle={{ background: '#1f2937', border: '1px solid #374151', borderRadius: 8 }}
-                  formatter={(v: any) => formatMoney(v)}
-                />
-                <Bar dataKey="revenue" fill="#f59e0b" radius={[6, 6, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+      <div className="max-w-[1600px] mx-auto p-6 space-y-6">
+        {/* ---------- Welcome / Hero ---------- */}
+        <div className="relative overflow-hidden rounded-3xl p-8 glass-elevated noise">
+          <div className="absolute -right-20 -top-20 w-80 h-80 rounded-full bg-brand opacity-10 blur-3xl" />
+          <div className="relative z-10 flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <p className="text-sm text-text-muted mb-2">Welcome back,</p>
+              <h2 className="font-display text-4xl font-bold text-text-primary mb-1">{user?.name}</h2>
+              <p className="text-text-secondary">Here's how Diamond Chicken is performing today.</p>
+            </div>
+            <div className="text-right">
+              <p className="text-xs text-text-muted uppercase tracking-wider mb-1">Today</p>
+              <p className="font-display text-2xl font-bold text-gradient">
+                {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' })}
+              </p>
+            </div>
           </div>
         </div>
 
-        <div className="glass rounded-2xl p-6">
-          <h2 className="font-display text-xl font-bold mb-4">Payment Methods</h2>
-          {paymentBreakdown.length === 0 ? (
-            <div className="h-64 flex items-center justify-center text-text-muted">No data yet</div>
-          ) : (
-            <div className="h-64">
+        {/* ---------- KPI cards ---------- */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 stagger-in">
+          <KpiCard
+            tint="primary" Icon={DollarSign}
+            label="Today's Revenue" value={money(summary.totalRevenue)}
+            hint={`VAT: ${money(summary.totalTax)}`}
+            loading={isLoading}
+          />
+          <KpiCard
+            tint="info" Icon={ShoppingBag}
+            label="Orders Today" value={`${summary.totalOrders || 0}`}
+            hint={`${recentOrders.length} in last view`}
+            loading={isLoading}
+          />
+          <KpiCard
+            tint="success" Icon={TrendingUp}
+            label="Avg. Order Value" value={money(summary.averageOrderValue)}
+            hint="Per transaction"
+            loading={isLoading}
+          />
+          <KpiCard
+            tint="secondary" Icon={Package}
+            label="Items Sold" value={`${summary.totalItems || 0}`}
+            hint="Units moved today"
+            loading={isLoading}
+          />
+        </div>
+
+        {/* ---------- Charts ---------- */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="lg:col-span-2 glass rounded-2xl p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="font-display text-lg font-bold text-text-primary">Revenue by Hour</h3>
+                <p className="text-xs text-text-muted mt-0.5">Live throughout the day</p>
+              </div>
+              <span className="chip chip-primary"><Flame className="w-3 h-3" /> Today</span>
+            </div>
+            <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={paymentBreakdown}
-                    dataKey="revenue"
-                    nameKey="method"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={50}
-                    outerRadius={80}
-                    paddingAngle={4}
-                  >
-                    {paymentBreakdown.map((p: any, i: number) => (
-                      <Cell key={i} fill={METHOD_COLORS[p.method] || '#f59e0b'} />
-                    ))}
-                  </Pie>
+                <BarChart data={hourlyPadded} margin={{ top: 10, right: 8, left: -20, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#F5A623" stopOpacity={1} />
+                      <stop offset="100%" stopColor="#FF6B35" stopOpacity={0.5} />
+                    </linearGradient>
+                    <linearGradient id="barGradCurrent" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#FFD166" stopOpacity={1} />
+                      <stop offset="100%" stopColor="#F5A623" stopOpacity={0.8} />
+                    </linearGradient>
+                  </defs>
+                  <XAxis dataKey="hour" stroke="#52525B" fontSize={10} tickLine={false} axisLine={false} interval={1} />
+                  <YAxis stroke="#52525B" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v) => `$${v}`} />
                   <Tooltip
-                    contentStyle={{ background: '#1f2937', border: '1px solid #374151', borderRadius: 8 }}
-                    formatter={(v: any) => formatMoney(v)}
+                    cursor={{ fill: 'rgba(245,166,35,0.06)' }}
+                    contentStyle={{
+                      background: 'rgba(17,17,20,0.95)',
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      borderRadius: 12,
+                      fontSize: 12,
+                      backdropFilter: 'blur(16px)',
+                    }}
+                    labelFormatter={(h) => `${h}:00`}
+                    formatter={(v: any, name) => [name === 'revenue' ? money(v) : `${v}`, name === 'revenue' ? 'Revenue' : 'Orders']}
                   />
-                  <Legend iconSize={10} wrapperStyle={{ fontSize: 12 }} />
-                </PieChart>
+                  <Bar dataKey="revenue" radius={[8, 8, 0, 0]}>
+                    {hourlyPadded.map((_, i) => (
+                      <Cell key={i} fill={i === currentHour ? 'url(#barGradCurrent)' : 'url(#barGrad)'} />
+                    ))}
+                  </Bar>
+                </BarChart>
               </ResponsiveContainer>
             </div>
-          )}
-        </div>
-      </div>
+          </div>
 
-      {/* Live feed + low stock */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 glass rounded-2xl p-6">
-          <h2 className="font-display text-xl font-bold mb-4">Live Order Feed</h2>
-          <div className="space-y-2 max-h-96 overflow-y-auto">
-            {recentOrders.length === 0 ? (
-              <p className="text-text-muted text-center py-8">No orders yet today</p>
+          <div className="glass rounded-2xl p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-display text-lg font-bold text-text-primary">Payment Mix</h3>
+              <span className="chip"><Activity className="w-3 h-3" /> Live</span>
+            </div>
+            {paymentBreakdown.length === 0 ? (
+              <div className="h-72 flex flex-col items-center justify-center text-center">
+                <div className="w-16 h-16 rounded-full bg-surface-2 flex items-center justify-center mb-3">
+                  <Activity className="w-7 h-7 text-text-muted" />
+                </div>
+                <p className="text-text-muted text-sm">No transactions yet</p>
+              </div>
             ) : (
-              recentOrders.map((o: any) => (
-                <div key={o.id} className="flex items-center justify-between p-3 bg-surface rounded-xl hover:bg-surface-2 transition-colors">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center font-bold text-primary text-xs">
-                      {formatTime(o.createdAt)}
-                    </div>
-                    <div>
-                      <p className="font-semibold text-text-primary text-sm">{o.orderNumber}</p>
-                      <p className="text-xs text-text-secondary">
-                        {o.itemCount} item{o.itemCount !== 1 ? 's' : ''} • {String(o.orderType).replace('_', '-')}
-                        {o.cashierName && ` • ${o.cashierName}`}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-bold text-primary">{formatMoney(o.totalAmount)}</p>
-                    <p className={`text-xs font-semibold capitalize ${STATUS_COLORS[o.status] || 'text-text-muted'}`}>
-                      {o.status}
-                    </p>
+              <div className="space-y-4">
+                <div className="h-44 relative">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={paymentBreakdown}
+                        dataKey="revenue"
+                        nameKey="method"
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={55}
+                        outerRadius={80}
+                        paddingAngle={3}
+                        stroke="none"
+                      >
+                        {paymentBreakdown.map((p: any, i: number) => (
+                          <Cell key={i} fill={METHOD_META[p.method]?.color || '#F5A623'} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        contentStyle={{ background: 'rgba(17,17,20,0.95)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, fontSize: 12 }}
+                        formatter={(v: any) => money(v)}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                    <p className="text-xs text-text-muted">Total</p>
+                    <p className="font-display text-xl font-bold text-text-primary">{money(totalPayments)}</p>
                   </div>
                 </div>
-              ))
+                <div className="space-y-1.5">
+                  {paymentBreakdown.map((p: any) => {
+                    const pct = ((p.revenue / totalPayments) * 100) || 0;
+                    const meta = METHOD_META[p.method] || { color: '#F5A623', label: p.method };
+                    return (
+                      <div key={p.method} className="flex items-center gap-3 text-xs">
+                        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: meta.color }} />
+                        <span className="flex-1 text-text-secondary">{meta.label}</span>
+                        <span className="font-semibold text-text-primary">{money(p.revenue)}</span>
+                        <span className="text-text-muted w-10 text-right">{pct.toFixed(0)}%</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             )}
           </div>
         </div>
 
-        <div className="glass rounded-2xl p-6">
-          <h2 className="font-display text-xl font-bold mb-4 flex items-center gap-2">
-            <AlertTriangle className="w-5 h-5 text-secondary" />
-            Low Stock Alerts
-          </h2>
-          <div className="space-y-2 max-h-96 overflow-y-auto">
-            {lowStock.length === 0 ? (
-              <p className="text-success text-sm text-center py-8">✓ All items well stocked</p>
-            ) : (
-              lowStock.map((item: any) => {
-                const isOut = item.quantity <= 0;
-                return (
-                  <div
-                    key={item.id}
-                    className={`flex items-center justify-between p-3 rounded-xl border ${
-                      isOut ? 'bg-danger/10 border-danger/30' : 'bg-secondary/10 border-secondary/30'
-                    }`}
-                  >
-                    <div>
-                      <p className="font-semibold text-text-primary text-sm">{item.name}</p>
-                      <p className="text-xs text-text-secondary">Threshold: {item.threshold}</p>
+        {/* ---------- Live feed + low stock ---------- */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 pb-8">
+          <div className="lg:col-span-2 glass rounded-2xl p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="font-display text-lg font-bold text-text-primary">Live Order Feed</h3>
+                <p className="text-xs text-text-muted mt-0.5">Most recent orders, updated in real time</p>
+              </div>
+              <span className="chip chip-success"><span className="dot dot-live" /> Live</span>
+            </div>
+            <div className="space-y-2 max-h-[420px] overflow-y-auto -mr-2 pr-2">
+              {recentOrders.length === 0 ? (
+                <EmptyState icon={<ShoppingBag className="w-6 h-6" />} label="No orders yet today" sub="They'll appear here the moment a cashier charges a customer." />
+              ) : (
+                recentOrders.map((o) => {
+                  const st = STATUS_META[o.status] || { color: 'text-text-muted', label: o.status };
+                  return (
+                    <div key={o.id} className="group flex items-center gap-4 p-3 rounded-xl hover:bg-surface-2 transition-colors">
+                      <div className="w-12 h-12 rounded-xl bg-primary-soft border border-primary/20 flex flex-col items-center justify-center text-primary flex-shrink-0">
+                        <span className="text-[9px] uppercase tracking-wider leading-none">{formatTime(o.createdAt)}</span>
+                        <span className="font-display font-bold text-sm mt-0.5">{o.itemCount}</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-text-primary text-sm truncate">
+                          {o.orderNumber} <span className="text-text-muted font-normal">• {String(o.orderType).replace('_', '-')}</span>
+                        </p>
+                        <p className="text-xs text-text-muted truncate">
+                          {o.itemCount} item{o.itemCount !== 1 ? 's' : ''}{o.cashierName && ` • by ${o.cashierName}`}{o.paymentMethod && ` • ${o.paymentMethod}`}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-display font-bold text-base text-text-primary">{money(o.totalAmount)}</p>
+                        <p className={`text-[10px] font-bold uppercase tracking-wider ${st.color}`}>{st.label}</p>
+                      </div>
                     </div>
-                    <span className={`font-display text-xl font-bold ${isOut ? 'text-danger' : 'text-secondary'}`}>
-                      {item.quantity}
-                    </span>
-                  </div>
-                );
-              })
-            )}
+                  );
+                })
+              )}
+            </div>
           </div>
-          <Link
-            to="/inventory"
-            className="mt-4 w-full py-2.5 flex items-center justify-center gap-2 bg-primary/10 border border-primary/30 rounded-lg text-primary font-semibold text-sm hover:bg-primary/20 transition-colors"
-          >
-            <Boxes className="w-4 h-4" /> Manage Inventory
-          </Link>
+
+          <div className="glass rounded-2xl p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-secondary" />
+                <h3 className="font-display text-lg font-bold text-text-primary">Stock Alerts</h3>
+              </div>
+              <span className={`chip ${lowStock.length === 0 ? 'chip-success' : 'chip-warn'}`}>{lowStock.length}</span>
+            </div>
+            <div className="space-y-2 max-h-[360px] overflow-y-auto -mr-2 pr-2">
+              {lowStock.length === 0 ? (
+                <EmptyState icon={<Package className="w-6 h-6 text-success" />} label="All stocked up" sub="Every item is above its low-stock threshold." />
+              ) : (
+                lowStock.map((item) => {
+                  const isOut = item.quantity <= 0;
+                  const pct = Math.min(100, Math.max(0, (item.quantity / (item.threshold * 2)) * 100));
+                  return (
+                    <div key={item.id} className={`p-3 rounded-xl border ${isOut ? 'bg-danger-soft border-danger/30' : 'bg-secondary-soft border-secondary/30'}`}>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <p className="font-semibold text-text-primary text-sm truncate pr-2">{item.name}</p>
+                        <span className={`font-display text-lg font-bold ${isOut ? 'text-danger' : 'text-secondary'}`}>{item.quantity}</span>
+                      </div>
+                      <div className="h-1.5 rounded-full bg-surface-2 overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${isOut ? 'bg-danger' : 'bg-secondary'}`}
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                      <p className="text-[10px] text-text-muted mt-1">Threshold: {item.threshold}</p>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+            <Link to="/inventory" className="mt-4 btn btn-primary w-full">
+              <Boxes className="w-4 h-4" /> Manage Inventory
+            </Link>
+          </div>
         </div>
       </div>
     </div>
@@ -240,17 +354,48 @@ export default function DashboardPage() {
 }
 
 function KpiCard({
-  icon, tint, label, value, loading,
-}: { icon: React.ReactNode; tint: string; label: string; value: string; loading?: boolean }) {
+  tint, Icon, label, value, hint, loading,
+}: {
+  tint: 'primary' | 'info' | 'success' | 'secondary';
+  Icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  value: string;
+  hint?: string;
+  loading?: boolean;
+}) {
+  const tints = {
+    primary: { bg: 'from-primary/25 to-transparent', icon: 'text-primary bg-primary-soft border-primary/30', ring: 'amber-glow-soft' },
+    info: { bg: 'from-info/25 to-transparent', icon: 'text-info bg-info-soft border-info/30', ring: '' },
+    success: { bg: 'from-success/25 to-transparent', icon: 'text-success bg-success-soft border-success/30', ring: '' },
+    secondary: { bg: 'from-secondary/25 to-transparent', icon: 'text-secondary bg-secondary-soft border-secondary/30', ring: '' },
+  }[tint];
   return (
-    <div className="glass rounded-2xl p-6">
-      <div className="flex items-center justify-between mb-4">
-        <div className={`w-12 h-12 rounded-xl bg-${tint}/20 flex items-center justify-center`}>{icon}</div>
+    <div className={`relative overflow-hidden glass rounded-2xl p-5 group hover-lift ${tints.ring}`}>
+      <div className={`absolute inset-x-0 top-0 h-24 bg-gradient-to-b ${tints.bg} opacity-60 pointer-events-none`} />
+      <div className="relative flex items-start justify-between mb-4">
+        <div className={`w-11 h-11 rounded-xl flex items-center justify-center border ${tints.icon}`}>
+          <Icon className="w-5 h-5" />
+        </div>
       </div>
-      <h3 className="text-text-secondary text-sm mb-1">{label}</h3>
-      <p className="font-display text-3xl font-bold text-text-primary">
-        {loading ? '…' : value}
-      </p>
+      <p className="text-xs text-text-muted uppercase tracking-wider mb-1">{label}</p>
+      {loading ? (
+        <div className="h-9 w-28 shimmer rounded-md" />
+      ) : (
+        <p className="font-display text-3xl font-bold text-text-primary tabular-nums">{value}</p>
+      )}
+      {hint && <p className="text-[11px] text-text-muted mt-1.5">{hint}</p>}
+    </div>
+  );
+}
+
+function EmptyState({ icon, label, sub }: { icon: React.ReactNode; label: string; sub?: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center text-center py-10">
+      <div className="w-14 h-14 rounded-full bg-surface-2 flex items-center justify-center text-text-muted mb-3">
+        {icon}
+      </div>
+      <p className="text-sm font-semibold text-text-secondary">{label}</p>
+      {sub && <p className="text-xs text-text-muted mt-1 max-w-xs">{sub}</p>}
     </div>
   );
 }
