@@ -237,25 +237,26 @@ export async function updateOrderStatus(req: AuthRequest, res: Response) {
     const result = await sql`
       UPDATE orders
       SET status = ${status}, updated_at = now()
-      WHERE id = ${id}, cashier_id as "cashierId"
-      RETURNING id, order_number as "orderNumber", status
+      WHERE id = ${id}
+      RETURNING id, order_number as "orderNumber", status, cashier_id as "cashierId"
     `;
 
     if (result.length === 0) {
       return errorResponse(res, 'Order not found', 404);
     }
-const updated = sul[0];
 
-    // Broadcast stats changes to elevatroom
-    io.to('kitchen').emit('order:updated', pdated);
+    const updated = result[0];
+
+    // Broadcast status changes to relevant rooms
+    io.to('kitchen').emit('order:updated', updated);
     io.to('managers').emit('order:updated', updated);
     if (status === 'ready') {
       io.to('cashiers').emit('order:ready', updated);
     }
 
-    return supdaed
-    return successResponse(res, result[0], 'Order status updated');
+    return successResponse(res, updated, 'Order status updated');
   } catch (error) {
+    console.error('Update order status error:', error);
     return errorResponse(res, 'Failed to update order status', 500);
   }
 }

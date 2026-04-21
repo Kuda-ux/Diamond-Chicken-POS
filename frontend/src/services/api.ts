@@ -59,6 +59,15 @@ export const ordersApi = {
   getTodaySummary: () => api.get('/orders/today/summary'),
 };
 
+export const receiptsApi = {
+  get: (orderId: string) => api.get(`/receipts/${orderId}`),
+  // Public HTML URL (no /api prefix) — for WhatsApp & browser print fallback
+  htmlUrl: (orderId: string) => {
+    const base = API_URL.replace(/\/api\/?$/, '');
+    return `${base}/receipts/${orderId}`;
+  },
+};
+
 export const paymentsApi = {
   processCash: (orderId: string, amountTendered: number) =>
     api.post('/payments/cash', { orderId, amountTendered }),

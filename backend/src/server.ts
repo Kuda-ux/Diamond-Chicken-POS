@@ -8,6 +8,7 @@ import { env } from './utils/env';
 import { errorHandler } from './middleware/errorHandler';
 import routes from './routes';
 import { runMigrations } from './db/migrate';
+import { getReceiptHtml } from './controllers/receiptsController';
 
 const app = express();
 const httpServer = createServer(app);
@@ -38,6 +39,9 @@ app.use('/api/auth', authLimiter);
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
+
+// Public HTML receipt (for WhatsApp sharing — no auth, UUID-gated)
+app.get('/receipts/:id', getReceiptHtml);
 
 app.use('/api', routes);
 

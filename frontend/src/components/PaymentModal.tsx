@@ -1,7 +1,15 @@
 import { useState } from 'react';
-import { X, Banknote, Smartphone, QrCode, CreditCard, Building2, CheckCircle2, Loader2 } from 'lucide-react';
-import { ordersApi, paymentsApi } from '../services/api';
+import { X, Banknote, Smartphone, QrCode, CreditCard, Building2, CheckCircle2, Loader2, Printer, MessageCircle, ExternalLink, Usb } from 'lucide-react';
+import { ordersApi, paymentsApi, receiptsApi } from '../services/api';
 import { useCartStore } from '../stores/cartStore';
+import {
+  connectPrinter,
+  disconnectPrinter,
+  isPrinterConnected,
+  openPrintDialog,
+  printReceipt,
+  whatsAppShareUrl,
+} from '../services/printer';
 
 type PaymentMethod = 'cash' | 'ecocash' | 'innbucks' | 'zipit' | 'card';
 
@@ -19,6 +27,8 @@ const METHODS: { key: PaymentMethod; label: string; icon: any; color: string }[]
   { key: 'card', label: 'Card / Visa', icon: CreditCard, color: 'text-orange-400' },
 ];
 
+  const [printStatus, setPrintStatus] = useState<string>('');
+  const [printerReady, setPrinterReady] = useState(isPrinterConnected());
 export default function PaymentModal({ open, onClose, onSuccess }: PaymentModalProps) {
   const cart = useCartStore();
   const [method, setMethod] = useState<PaymentMethod | null>(null);
@@ -100,6 +110,7 @@ export default function PaymentModal({ open, onClose, onSuccess }: PaymentModalP
       await paymentsApi.confirm(order.id);
 
       setResult({
+        orderId: order.id,
         orderNumber: order.order_number || order.orderNumber,
         change: method === 'cash' ? change : undefined,
         payment: paymentRes?.data.data,
@@ -117,6 +128,48 @@ export default function PaymentModal({ open, onClose, onSuccess }: PaymentModalP
     reset();
     cart.clearCart();
     onSuccess(orderNumber, finalChange);
+  };
+
+  const handleConnectPrinter = async () => {
+    setPrintStatus('');
+    try {
+      await connectPrinter();
+      setPrinterReady(true);
+      setPrintStatus('Printer connected ✓');
+    } catch (e: any) {
+      setPrintStatus(e.message || 'Failed to connect');
+    }
+  };
+
+  const handleThermalPrint = async () => {
+    if (!result) return;
+    setPrintStatus('Printing…');
+    try {
+      const receiptRes = await receiptsApi.get(result.orderId);
+      const { receipt, restaurant } = receiptRes.data.data;
+      await printReceipt({ ...receipt, restaurant, change: result.change });
+      setPrintStatus('Printed ✓');
+    } catch (e: any) {
+      setPrintStatus(e.message || 'Print failed');
+    }
+  };
+
+  const handleBrowserPrint = () => {
+    if (!result) return;
+    openPrintDialog(receiptsApi.htmlUrl(result.orderId));
+  };
+
+  const handleWhatsApp = () => {
+    if (!result) return;
+    const url = receiptsApi.htmlUrl(result.orderId);
+    const total = cart.getTotal().toFixed(2);
+    window.open(whatsAppShareUrl(url, result.orderNumber, total), '_blank');
+  };
+
+  const handleDisconnectPrinter = async () => {
+    await disconnectPrinter();
+    setPrinterReady(false);
+    setPrintStatus('Printer disconnected');
   };
 
   return (
@@ -163,6 +216,58 @@ export default function PaymentModal({ open, onClose, onSuccess }: PaymentModalP
                 </div>
               </div>
             )}
+
+            {/* Receipt actions */}
+            <div className="space-y-2 mb-4">
+              <div className="grid grid-cols-3 gap-2">
+                {printerReady ? (
+                  <button
+                    onClick={handleThermalPrint}
+                    className="flex flex-col items-center gap-1 py-3 glass border border-primary/30 rounded-lg hover:bg-primary/10 transition-all"
+                    title="Print to thermal printer"
+                  >
+                    <Printer className="w-5 h-5 text-primary" />
+                    <span className="text-xs font-semibold">Print</span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleConnectPrinter}
+                    className="flex flex-col items-center gap-1 py-3 glass border border-border rounded-lg hover:bg-surface-2 transition-all"
+                    title="Connect USB/Serial thermal printer"
+                  >
+                    <Usb className="w-5 h-5 text-text-secondary" />
+                    <span className="text-xs font-semibold">Connect</span>
+                  </button>
+                )}
+                <button
+                  onClick={handleBrowserPrint}
+                  className="flex flex-col items-center gap-1 py-3 glass border border-border rounded-lg hover:bg-surface-2 transition-all"
+                  title="Open receipt in browser and print"
+                >
+                  <ExternalLink className="w-5 h-5 text-info" />
+                  <span className="text-xs font-semibold">Browser</span>
+                </button>
+                <button
+                  onClick={handleWhatsApp}
+                  className="flex flex-col items-center gap-1 py-3 glass border border-border rounded-lg hover:bg-surface-2 transition-all"
+                  title="Share digital receipt via WhatsApp"
+                >
+                  <MessageCircle className="w-5 h-5 text-green-400" />
+                  <span className="text-xs font-semibold">WhatsApp</span>
+                </button>
+              </div>
+              {printerReady && (
+                <button
+                  onClick={handleDisconnectPrinter}
+                  className="w-full text-xs text-text-muted hover:text-text-secondary py-1"
+                >
+                  Disconnect printer
+                </button>
+              )}
+              {printStatus && (
+                <div className="text-center text-xs text-text-secondary">{printStatus}</div>
+              )}
+            </div>
 
             <button
               onClick={handleDone}

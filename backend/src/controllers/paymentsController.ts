@@ -4,6 +4,7 @@ import sql from '../db/client';
 import { successResponse, errorResponse } from '../utils/response';
 import { AuthRequest } from '../middleware/auth';
 import { processCashPayment } from '../services/payments/cashPayment';
+import { io } from '../server';
 
 const cashPaymentSchema = z.object({
   orderId: z.string().uuid(),
