@@ -5,6 +5,9 @@ import menuRoutes from './menuRoutes';
 import ordersRoutes from './ordersRoutes';
 import paymentsRoutes from './paymentsRoutes';
 import receiptsRoutes from './receiptsRoutes';
+import statsRoutes from './statsRoutes';
+import inventoryRoutes from './inventoryRoutes';
+import shiftsRoutes from './shiftsRoutes';
 
 const router = Router();
 
@@ -14,5 +17,8 @@ router.use('/menu', menuRoutes);
 router.use('/orders', ordersRoutes);
 router.use('/payments', paymentsRoutes);
 router.use('/receipts', receiptsRoutes);
+router.use('/stats', statsRoutes);
+router.use('/inventory', inventoryRoutes);
+router.use('/shifts', shiftsRoutes);
 
 export default router;

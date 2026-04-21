@@ -68,6 +68,23 @@ export const receiptsApi = {
   },
 };
 
+export const statsApi = {
+  dashboard: () => api.get('/stats/dashboard'),
+};
+
+export const inventoryApi = {
+  list: () => api.get('/inventory'),
+  restock: (menuItemId: string, payload: { quantity: number; mode?: 'add' | 'set'; lowStockThreshold?: number }) =>
+    api.post(`/inventory/${menuItemId}/restock`, payload),
+};
+
+export const shiftsApi = {
+  current: () => api.get('/shifts/current'),
+  open: (openingFloat: number) => api.post('/shifts/open', { openingFloat }),
+  close: (closingFloat: number) => api.post('/shifts/close', { closingFloat }),
+  zReport: (shiftId: string) => api.get(`/shifts/${shiftId}/z-report`),
+};
+
 export const paymentsApi = {
   processCash: (orderId: string, amountTendered: number) =>
     api.post('/payments/cash', { orderId, amountTendered }),

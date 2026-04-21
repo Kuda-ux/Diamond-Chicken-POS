@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Search, ShoppingCart, Plus, Minus, Trash2, LogOut, Bell } from 'lucide-react';
-import { menuApi, categoriesApi } from '../services/api';
+import { Search, ShoppingCart, Plus, Minus, Trash2, LogOut, Bell, Lock, PlayCircle } from 'lucide-react';
+import { menuApi, categoriesApi, shiftsApi } from '../services/api';
 import { useCartStore } from '../stores/cartStore';
 import { useAuthStore } from '../stores/authStore';
 import PaymentModal from '../components/PaymentModal';
+import ShiftCloseModal from '../components/ShiftCloseModal';
 import { getSocket, joinRoom } from '../services/socket';
 
 const LOW_STOCK_THRESHOLD = 10;
@@ -15,9 +16,30 @@ export default function POSPage() {
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [readyAlerts, setReadyAlerts] = useState<string[]>([]);
+  const [shiftCloseOpen, setShiftCloseOpen] = useState(false);
+  const [openingFloat, setOpeningFloat] = useState('');
+  const [shiftLoading, setShiftLoading] = useState(false);
   const { user, logout } = useAuthStore();
   const cart = useCartStore();
   const queryClient = useQueryClient();
+
+  const { data: currentShift, refetch: refetchShift } = useQuery({
+    queryKey: ['current-shift'],
+    queryFn: async () => (await shiftsApi.current()).data.data,
+  });
+
+  const handleOpenShift = async () => {
+    const val = parseFloat(openingFloat);
+    if (isNaN(val) || val < 0) return;
+    setShiftLoading(true);
+    try {
+      await shiftsApi.open(val);
+      await refetchShift();
+      setOpeningFloat('');
+    } finally {
+      setShiftLoading(false);
+    }
+  };
 
   // Socket.IO: listen for order:ready
   useEffect(() => {
@@ -113,6 +135,14 @@ export default function POSPage() {
           <div className="text-text-secondary text-sm">
             {new Date().toLocaleTimeString()}
           </div>
+          {currentShift ? (
+            <button
+              onClick={() => setShiftCloseOpen(true)}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-secondary/10 border border-secondary/30 hover:bg-secondary/20 text-secondary text-sm font-semibold"
+            >
+              <Lock className="w-4 h-4" /> Close Shift
+            </button>
+          ) : null}
           <button
             onClick={logout}
             className="flex items-center gap-2 px-3 py-1.5 rounded-lg glass hover:bg-surface-2 text-text-secondary text-sm"
@@ -121,6 +151,45 @@ export default function POSPage() {
           </button>
         </div>
       </div>
+
+      {/* Start Shift prompt */}
+      {!currentShift && (
+        <div className="bg-info/10 border-b border-info/30 px-6 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <PlayCircle className="w-5 h-5 text-info" />
+            <div>
+              <p className="text-sm font-semibold text-text-primary">Start your shift</p>
+              <p className="text-xs text-text-secondary">Enter your opening cash float to begin</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              step="0.01"
+              value={openingFloat}
+              onChange={(e) => setOpeningFloat(e.target.value)}
+              placeholder="Opening float $"
+              className="px-3 py-2 w-40 bg-surface border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-info text-sm"
+            />
+            <button
+              onClick={handleOpenShift}
+              disabled={shiftLoading || !openingFloat}
+              className="px-4 py-2 bg-info text-background font-semibold rounded-lg hover:bg-info/90 disabled:opacity-50 text-sm"
+            >
+              {shiftLoading ? 'Opening…' : 'Start Shift'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      <ShiftCloseModal
+        open={shiftCloseOpen}
+        onClose={() => setShiftCloseOpen(false)}
+        onClosed={() => {
+          setShiftCloseOpen(false);
+          refetchShift();
+        }}
+      />
 
       {toast && (
         <div className="fixed top-20 right-6 z-40 bg-success/20 border border-success text-success px-6 py-3 rounded-xl shadow-lg">

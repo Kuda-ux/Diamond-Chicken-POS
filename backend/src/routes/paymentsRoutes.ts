@@ -10,6 +10,6 @@ router.post('/innbucks', authenticate, paymentsController.processInnbucks);
 router.post('/zipit', authenticate, paymentsController.processZipit);
 router.post('/card', authenticate, paymentsController.processCard);
 router.get('/:orderId/status', authenticate, paymentsController.getPaymentStatus);
-router.post('/confirm', authenticate, authorize('admin', 'manager'), paymentsController.confirmPayment);
+router.post('/confirm', authenticate, authorize('admin', 'manager', 'cashier'), paymentsController.confirmPayment);
 
 export default router;
