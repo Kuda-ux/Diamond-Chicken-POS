@@ -174,8 +174,35 @@ export async function confirmPayment(req: AuthRequest, res: Response) {
       WHERE id = ${orderId}
     `;
 
+    // Fetch full order with items to push to kitchen
+    const fullOrder = await sql`
+      SELECT
+        o.id, o.order_number as "orderNumber", o.status,
+        o.order_type as "orderType", o.table_number as "tableNumber",
+        o.total_amount as "totalAmount", o.notes,
+        o.created_at as "createdAt",
+        json_agg(
+          json_build_object(
+            'id', oi.id,
+            'quantity', oi.quantity,
+            'menuItem', json_build_object('name', m.name, 'price', m.price)
+          )
+        ) as items
+      FROM orders o
+      LEFT JOIN order_items oi ON o.id = oi.order_id
+      LEFT JOIN menu_items m ON oi.menu_item_id = m.id
+      WHERE o.id = ${orderId}
+      GROUP BY o.id
+    `;
+
+    if (fullOrder[0]) {
+      io.to('kitchen').emit('order:new', fullOrder[0]);
+      io.to('managers').emit('order:new', fullOrder[0]);
+    }
+
     return successResponse(res, null, 'Payment confirmed');
   } catch (error) {
+    console.error('Confirm payment error:', error);
     return errorResponse(res, 'Failed to confirm payment', 500);
   }
 }

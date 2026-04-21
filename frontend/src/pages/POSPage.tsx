@@ -1,18 +1,56 @@
-import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Search, ShoppingCart, Plus, Minus, Trash2, LogOut } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Search, ShoppingCart, Plus, Minus, Trash2, LogOut, Bell } from 'lucide-react';
 import { menuApi, categoriesApi } from '../services/api';
 import { useCartStore } from '../stores/cartStore';
 import { useAuthStore } from '../stores/authStore';
 import PaymentModal from '../components/PaymentModal';
+import { getSocket, joinRoom } from '../services/socket';
+
+const LOW_STOCK_THRESHOLD = 10;
 
 export default function POSPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [readyAlerts, setReadyAlerts] = useState<string[]>([]);
   const { user, logout } = useAuthStore();
   const cart = useCartStore();
+  const queryClient = useQueryClient();
+
+  // Socket.IO: listen for order:ready
+  useEffect(() => {
+    const socket = getSocket();
+    joinRoom('cashiers');
+
+    const onReady = (order: any) => {
+      const msg = `🔔 Order ${order.orderNumber} is READY for pickup`;
+      setReadyAlerts((prev) => [msg, ...prev].slice(0, 5));
+      // Beep using WebAudio
+      try {
+        const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.value = 880;
+        gain.gain.value = 0.1;
+        osc.start();
+        setTimeout(() => { osc.stop(); ctx.close(); }, 200);
+      } catch { /* noop */ }
+    };
+
+    socket.on('order:ready', onReady);
+    // Refresh menu stock when orders happen
+    const refreshMenu = () => queryClient.invalidateQueries({ queryKey: ['menu'] });
+    socket.on('order:new', refreshMenu);
+
+    return () => {
+      socket.off('order:ready', onReady);
+      socket.off('order:new', refreshMenu);
+    };
+  }, [queryClient]);
 
   const { data: categories } = useQuery({
     queryKey: ['categories'],
@@ -36,7 +74,26 @@ export default function POSPage() {
     return matchesSearch && matchesCategory && item.isAvailable;
   });
 
+  const getStock = (item: any): number | null => {
+    const v = item.stockQuantity ?? item.stock_quantity;
+    return v === undefined || v === null ? null : Number(v);
+  };
+
   const handleAddToCart = (item: any) => {
+    const stock = getStock(item);
+    if (stock !== null && stock <= 0) {
+      setToast(`${item.name} is out of stock`);
+      setTimeout(() => setToast(null), 3000);
+      return;
+    }
+    // Check already-in-cart count vs stock
+    const existing = cart.items.find((i) => i.menuItemId === item.id);
+    const nextQty = (existing?.quantity || 0) + 1;
+    if (stock !== null && nextQty > stock) {
+      setToast(`Only ${stock} of ${item.name} left`);
+      setTimeout(() => setToast(null), 3000);
+      return;
+    }
     cart.addItem({
       menuItemId: item.id,
       name: item.name,
@@ -68,6 +125,26 @@ export default function POSPage() {
       {toast && (
         <div className="fixed top-20 right-6 z-40 bg-success/20 border border-success text-success px-6 py-3 rounded-xl shadow-lg">
           {toast}
+        </div>
+      )}
+
+      {readyAlerts.length > 0 && (
+        <div className="fixed bottom-6 right-6 z-40 space-y-2 max-w-sm">
+          {readyAlerts.map((alert, i) => (
+            <div
+              key={`${alert}-${i}`}
+              className="flex items-start gap-3 bg-primary/20 border border-primary text-text-primary px-4 py-3 rounded-xl shadow-xl amber-glow animate-pulse"
+            >
+              <Bell className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
+              <div className="flex-1 text-sm font-medium">{alert}</div>
+              <button
+                onClick={() => setReadyAlerts((prev) => prev.filter((_, idx) => idx !== i))}
+                className="text-text-muted hover:text-text-primary text-xs"
+              >
+                ✕
+              </button>
+            </div>
+          ))}
         </div>
       )}
 

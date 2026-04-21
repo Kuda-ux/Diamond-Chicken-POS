@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Clock, LogOut, ChefHat } from 'lucide-react';
 import { api, ordersApi } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
+import { getSocket, joinRoom } from '../services/socket';
 
 function minutesSince(iso: string): number {
   return Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 60000));
@@ -18,6 +19,25 @@ export default function KitchenPage() {
     const t = setInterval(() => setNow(Date.now()), 30000);
     return () => clearInterval(t);
   }, []);
+
+  // Socket.IO: live order:new + order:updated
+  useEffect(() => {
+    const socket = getSocket();
+    joinRoom('kitchen');
+
+    const refresh = () => {
+      queryClient.invalidateQueries({ queryKey: ['kitchen-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['kitchen-order-details'] });
+    };
+
+    socket.on('order:new', refresh);
+    socket.on('order:updated', refresh);
+
+    return () => {
+      socket.off('order:new', refresh);
+      socket.off('order:updated', refresh);
+    };
+  }, [queryClient]);
 
   const { data: orders, isLoading } = useQuery({
     queryKey: ['kitchen-orders', now],
