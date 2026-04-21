@@ -9,6 +9,9 @@ export default defineConfig({
     alias: {
       '@': path.resolve(__dirname, './src'),
     },
+    // Critical: prevent duplicate React copies in monorepo workspace builds.
+    // Without this, hooks fail with "Cannot read properties of null (reading 'useState')".
+    dedupe: ['react', 'react-dom'],
   },
   server: {
     port: 5173,
