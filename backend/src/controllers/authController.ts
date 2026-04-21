@@ -75,7 +75,7 @@ export async function pinLogin(req: AuthRequest, res: Response) {
     const users = await sql`
       SELECT id, name, role, pin, is_active
       FROM users
-      WHERE role = 'cashier' AND pin IS NOT NULL
+      WHERE role IN ('cashier', 'kitchen') AND pin IS NOT NULL AND is_active = true
     `;
 
     if (users.length === 0) {
