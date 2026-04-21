@@ -1,10 +1,12 @@
-import express from 'express';
-import cors from 'cors';
+import sql from './db/client';
+import * as bcrypt from 'bcrypt';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { env } from './utils/env';
+import express from 'express';
+import cors from 'cors';
 import { errorHandler } from './middleware/errorHandler';
 import routes from './routes';
 import { runMigrations } from './db/migrate';
@@ -72,12 +74,26 @@ io.on('connection', (socket) => {
 
 export { io };
 
+async function ensureKitchenPins() {
+  try {
+    const rows = await sql`SELECT id, name FROM users WHERE role = 'kitchen' AND pin IS NULL`;
+    if (rows.length === 0) return;
+    const hash = await bcrypt.hash('9999', 10);
+    await sql`UPDATE users SET pin = ${hash} WHERE role = 'kitchen' AND pin IS NULL`;
+    console.log(`🔑 Set default PIN (9999) for ${rows.length} kitchen user(s):`, rows.map((r: any) => r.name).join(', '));
+  } catch (e) {
+    console.error('Failed to ensure kitchen PINs:', e);
+  }
+}
+
 async function startServer() {
   try {
     if (env.NODE_ENV === 'production') {
       console.log('Running migrations...');
       await runMigrations();
     }
+
+    await ensureKitchenPins();
 
     const PORT = parseInt(env.PORT);
     httpServer.listen(PORT, () => {

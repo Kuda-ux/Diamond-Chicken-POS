@@ -10,6 +10,7 @@ async function seed() {
     const managerPasswordHash = await bcrypt.hash('Manager@1234', 12);
     const pin1Hash = await bcrypt.hash('1234', 10);
     const pin2Hash = await bcrypt.hash('5678', 10);
+    const kitchenPinHash = await bcrypt.hash('9999', 10);
 
     await sql`
       INSERT INTO users (name, email, password_hash, role)
@@ -23,7 +24,7 @@ async function seed() {
       INSERT INTO users (name, pin, role)
       VALUES 
         ('Tendai Moyo', ${pin1Hash}, 'cashier'),
-        ('Rudo Chikwanda', ${pin2Hash}, 'cashier'),
+        ('Rudo Chikwanda',${kitchenPinHash}in2Hash}, 'cashier'),
         ('Chef Blessing', NULL, 'kitchen')
       ON CONFLICT DO NOTHING
     `;
@@ -114,6 +115,7 @@ async function seed() {
     console.log('   Admin: admin@diamondchicken.co.zw / Admin@1234');
     console.log('   Manager: manager@diamondchicken.co.zw / Manager@1234');
     console.log('   Cashier 1 PIN: 1234 (Tendai Moyo)');
+    console.log('   Kitchen  PIN: 9999 (Chef Blessing)');
     console.log('   Cashier 2 PIN: 5678 (Rudo Chikwanda)');
   } catch (error) {
     console.error('❌ Seeding failed:', error);
