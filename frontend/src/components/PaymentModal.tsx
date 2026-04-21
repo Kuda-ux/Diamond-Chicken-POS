@@ -27,8 +27,6 @@ const METHODS: { key: PaymentMethod; label: string; icon: any; color: string }[]
   { key: 'card', label: 'Card / Visa', icon: CreditCard, color: 'text-orange-400' },
 ];
 
-  const [printStatus, setPrintStatus] = useState<string>('');
-  const [printerReady, setPrinterReady] = useState(isPrinterConnected());
 export default function PaymentModal({ open, onClose, onSuccess }: PaymentModalProps) {
   const cart = useCartStore();
   const [method, setMethod] = useState<PaymentMethod | null>(null);
@@ -37,6 +35,8 @@ export default function PaymentModal({ open, onClose, onSuccess }: PaymentModalP
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState<any>(null);
+  const [printStatus, setPrintStatus] = useState<string>('');
+  const [printerReady, setPrinterReady] = useState(isPrinterConnected());
 
   if (!open) return null;
 
