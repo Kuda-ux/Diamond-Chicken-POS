@@ -202,22 +202,43 @@ export default function POSPage() {
 
           <div className="flex-1 overflow-y-auto">
             <div className="grid grid-cols-3 gap-4">
-              {filteredMenu?.map((item: any) => (
-                <button
-                  key={item.id}
-                  onClick={() => handleAddToCart(item)}
-                  className="glass rounded-xl p-4 hover:bg-primary/10 transition-all active:scale-95 text-left"
-                >
-                  <div className="text-4xl mb-2">🍗</div>
-                  <h3 className="font-display font-semibold text-text-primary mb-1">{item.name}</h3>
-                  <p className="text-primary font-bold">${parseFloat(item.price).toFixed(2)}</p>
-                  {item.stockQuantity !== undefined && (
-                    <p className={`text-xs mt-2 ${item.stockQuantity > 10 ? 'text-success' : 'text-secondary'}`}>
-                      Stock: {item.stockQuantity}
-                    </p>
-                  )}
-                </button>
-              ))}
+              {filteredMenu?.map((item: any) => {
+                const stock = getStock(item);
+                const threshold = Number(item.lowStockThreshold ?? item.low_stock_threshold ?? LOW_STOCK_THRESHOLD);
+                const outOfStock = stock !== null && stock <= 0;
+                const lowStock = stock !== null && stock > 0 && stock <= threshold;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => handleAddToCart(item)}
+                    disabled={outOfStock}
+                    className={`relative glass rounded-xl p-4 transition-all text-left ${
+                      outOfStock
+                        ? 'opacity-40 cursor-not-allowed grayscale'
+                        : 'hover:bg-primary/10 active:scale-95'
+                    }`}
+                  >
+                    {lowStock && (
+                      <span className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-secondary/20 border border-secondary text-secondary text-[10px] font-bold uppercase">
+                        Low
+                      </span>
+                    )}
+                    {outOfStock && (
+                      <span className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-danger/20 border border-danger text-danger text-[10px] font-bold uppercase">
+                        Out
+                      </span>
+                    )}
+                    <div className="text-4xl mb-2">🍗</div>
+                    <h3 className="font-display font-semibold text-text-primary mb-1">{item.name}</h3>
+                    <p className="text-primary font-bold">${parseFloat(item.price).toFixed(2)}</p>
+                    {stock !== null && (
+                      <p className={`text-xs mt-2 ${outOfStock ? 'text-danger' : lowStock ? 'text-secondary' : 'text-success'}`}>
+                        Stock: {stock}
+                      </p>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>
