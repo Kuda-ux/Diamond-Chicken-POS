@@ -76,6 +76,30 @@ export const inventoryApi = {
   list: () => api.get('/inventory'),
   restock: (menuItemId: string, payload: { quantity: number; mode?: 'add' | 'set'; lowStockThreshold?: number }) =>
     api.post(`/inventory/${menuItemId}/restock`, payload),
+  // Stock receipts (weekly batches)
+  listReceipts: (params?: { from?: string; to?: string; menuItemId?: string; limit?: number }) =>
+    api.get('/inventory/receipts', { params }),
+  receiptsSummary: () => api.get('/inventory/receipts/summary'),
+  createReceipts: (payload: {
+    receivedAt?: string;
+    supplier?: string;
+    notes?: string;
+    items: { menuItemId: string; quantity: number; unitCost?: number }[];
+  }) => api.post('/inventory/receipts', payload),
+  deleteReceipt: (id: string) => api.delete(`/inventory/receipts/${id}`),
+};
+
+export const usersApi = {
+  list: () => api.get('/users'),
+  create: (payload: {
+    name: string; role: 'admin' | 'manager' | 'cashier' | 'kitchen';
+    email?: string; password?: string; pin?: string;
+  }) => api.post('/users', payload),
+  update: (id: string, payload: {
+    name?: string; email?: string; role?: 'admin' | 'manager' | 'cashier' | 'kitchen';
+    isActive?: boolean; password?: string; pin?: string;
+  }) => api.patch(`/users/${id}`, payload),
+  remove: (id: string) => api.delete(`/users/${id}`),
 };
 
 export const shiftsApi = {

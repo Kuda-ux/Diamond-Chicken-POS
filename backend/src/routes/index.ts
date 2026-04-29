@@ -8,6 +8,7 @@ import receiptsRoutes from './receiptsRoutes';
 import statsRoutes from './statsRoutes';
 import inventoryRoutes from './inventoryRoutes';
 import shiftsRoutes from './shiftsRoutes';
+import usersRoutes from './usersRoutes';
 
 const router = Router();
 
@@ -19,6 +20,7 @@ router.use('/payments', paymentsRoutes);
 router.use('/receipts', receiptsRoutes);
 router.use('/stats', statsRoutes);
 router.use('/inventory', inventoryRoutes);
+router.use('/users', usersRoutes);
 router.use('/shifts', shiftsRoutes);
 
 export default router;

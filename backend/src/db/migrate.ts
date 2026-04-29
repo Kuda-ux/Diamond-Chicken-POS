@@ -13,12 +13,19 @@ export async function runMigrations() {
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
   try {
-    const migrationPath = join(__dirname, '../../migrations/001_initial_schema.sql');
-    const migrationSQL = readFileSync(migrationPath, 'utf-8');
+    const migrationFiles = [
+      '001_initial_schema.sql',
+      '002_stock_receipts.sql',
+    ];
 
     const client = await pool.connect();
     try {
-      await client.query(migrationSQL);
+      for (const file of migrationFiles) {
+        const migrationPath = join(__dirname, '../../migrations/', file);
+        const migrationSQL = readFileSync(migrationPath, 'utf-8');
+        await client.query(migrationSQL);
+        console.log(`  ✓ ${file}`);
+      }
       console.log('✅ Migrations completed successfully');
     } finally {
       client.release();
