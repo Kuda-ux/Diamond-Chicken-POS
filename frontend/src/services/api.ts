@@ -69,7 +69,8 @@ export const receiptsApi = {
 };
 
 export const statsApi = {
-  dashboard: () => api.get('/stats/dashboard'),
+  dashboard: (params?: { range?: string; from?: string; to?: string }) =>
+    api.get('/stats/dashboard', { params }),
 };
 
 export const inventoryApi = {

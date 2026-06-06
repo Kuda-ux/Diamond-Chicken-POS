@@ -1,9 +1,9 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   DollarSign, ShoppingBag, TrendingUp, Package, AlertTriangle,
-  LogOut, Boxes, Diamond, Activity, Flame, Users,
+  LogOut, Boxes, Diamond, Activity, Flame, Users, Clock, Award, AlertCircle,
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -40,9 +40,18 @@ const formatTime = (iso: string) => {
   return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
 };
 
+type Range = 'today' | 'yesterday' | 'week' | 'month';
+const RANGES: { key: Range; label: string }[] = [
+  { key: 'today', label: 'Today' },
+  { key: 'yesterday', label: 'Yesterday' },
+  { key: 'week', label: 'This Week' },
+  { key: 'month', label: 'This Month' },
+];
+
 export default function DashboardPage() {
   const { user, logout } = useAuthStore();
   const queryClient = useQueryClient();
+  const [range, setRange] = useState<Range>('today');
 
   useEffect(() => {
     const socket = getSocket();
@@ -53,17 +62,21 @@ export default function DashboardPage() {
     return () => { socket.off('order:new', refresh); socket.off('order:updated', refresh); };
   }, [queryClient]);
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['stats'],
-    queryFn: async () => (await statsApi.dashboard()).data.data,
+  const { data, isLoading, isFetching } = useQuery({
+    queryKey: ['stats', range],
+    queryFn: async () => (await statsApi.dashboard({ range })).data.data,
     refetchInterval: 15000,
   });
 
   const summary = data?.summary || {};
   const hourlyRevenue: any[] = data?.hourlyRevenue || [];
   const paymentBreakdown: any[] = data?.paymentBreakdown || [];
+  const cashierBreakdown: any[] = data?.cashierBreakdown || [];
+  const topItems: any[] = data?.topItems || [];
+  const shifts: any[] = data?.shifts || [];
   const recentOrders: any[] = data?.recentOrders || [];
   const lowStock: any[] = data?.lowStock || [];
+  const rangeLabel = data?.range?.label || 'Today';
 
   const hourlyPadded = Array.from({ length: 24 }, (_, h) => {
     const found = hourlyRevenue.find((r) => r.hour === h);
@@ -119,28 +132,57 @@ export default function DashboardPage() {
       </header>
 
       <div className="max-w-[1600px] mx-auto p-4 sm:p-6 space-y-5">
-        {/* ---------- Welcome ---------- */}
-        <div className="bg-panel rounded-2xl p-5 sm:p-8 border border-border flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <p className="text-xs sm:text-sm text-text-muted mb-2">Welcome back,</p>
-            <h2 className="font-display text-2xl sm:text-4xl font-bold text-text-primary mb-1">{user?.name}</h2>
-            <p className="text-sm text-text-secondary">Here's how Diamond Chicken is performing today.</p>
+        {/* ---------- Welcome + Range selector ---------- */}
+        <div className="bg-panel rounded-2xl p-5 sm:p-8 border border-border">
+          <div className="flex flex-wrap items-end justify-between gap-4 mb-5">
+            <div>
+              <p className="text-xs sm:text-sm text-text-muted mb-2">Welcome back,</p>
+              <h2 className="font-display text-2xl sm:text-4xl font-bold text-text-primary mb-1">{user?.name}</h2>
+              <p className="text-sm text-text-secondary">Showing <span className="text-primary font-semibold">{rangeLabel}</span> &mdash; paid sales only.</p>
+            </div>
+            <div className="text-right">
+              <p className="text-[10px] sm:text-xs text-text-muted uppercase tracking-wider mb-1">Live time (Harare)</p>
+              <p className="font-display text-lg sm:text-2xl font-bold text-primary">
+                {new Date().toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Harare' })}
+              </p>
+            </div>
           </div>
-          <div className="text-right">
-            <p className="text-[10px] sm:text-xs text-text-muted uppercase tracking-wider mb-1">Today</p>
-            <p className="font-display text-lg sm:text-2xl font-bold text-primary">
-              {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' })}
-            </p>
+          <div className="flex flex-wrap gap-2">
+            {RANGES.map((r) => (
+              <button
+                key={r.key}
+                onClick={() => setRange(r.key)}
+                className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold border transition-colors ${
+                  range === r.key
+                    ? 'bg-primary text-background border-primary'
+                    : 'bg-panel-2 text-text-secondary border-border hover:border-primary/40'
+                }`}
+              >
+                {r.label}
+              </button>
+            ))}
+            {isFetching && <span className="px-3 py-2 text-[10px] text-text-muted flex items-center gap-1.5"><span className="dot dot-live" /> Refreshing…</span>}
           </div>
         </div>
 
         {/* ---------- KPI cards ---------- */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 stagger-in">
-          <KpiCard tint="primary" Icon={DollarSign} label="Today's Revenue" value={money(summary.totalRevenue)} hint={`VAT: ${money(summary.totalTax)}`} loading={isLoading} />
-          <KpiCard tint="info" Icon={ShoppingBag} label="Orders Today" value={`${summary.totalOrders || 0}`} hint={`${recentOrders.length} in last view`} loading={isLoading} />
+          <KpiCard tint="primary" Icon={DollarSign} label={`Revenue (${rangeLabel})`} value={money(summary.totalRevenue)} hint={`VAT: ${money(summary.totalTax)} • ${summary.paidOrders || 0} paid`} loading={isLoading} />
+          <KpiCard tint="info" Icon={ShoppingBag} label="Paid Orders" value={`${summary.paidOrders || 0}`} hint={summary.unpaidOrders ? `${summary.unpaidOrders} unpaid pending` : 'All settled'} loading={isLoading} />
           <KpiCard tint="success" Icon={TrendingUp} label="Avg. Order Value" value={money(summary.averageOrderValue)} hint="Per transaction" loading={isLoading} />
-          <KpiCard tint="secondary" Icon={Package} label="Items Sold" value={`${summary.totalItems || 0}`} hint="Units moved today" loading={isLoading} />
+          <KpiCard tint="secondary" Icon={Package} label="Items Sold" value={`${summary.totalItems || 0}`} hint="Units moved" loading={isLoading} />
         </div>
+
+        {/* ---------- Outstanding banner (only when there's unpaid revenue) ---------- */}
+        {summary.outstandingRevenue > 0 && (
+          <div className="bg-danger/10 border border-danger/30 rounded-2xl p-4 flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-danger flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="font-semibold text-text-primary text-sm">{money(summary.outstandingRevenue)} outstanding</p>
+              <p className="text-xs text-text-muted mt-0.5">{summary.unpaidOrders} order(s) created but not yet paid for. These are excluded from revenue above.</p>
+            </div>
+          </div>
+        )}
 
         {/* ---------- Charts ---------- */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -221,6 +263,120 @@ export default function DashboardPage() {
             )}
           </div>
         </div>
+
+        {/* ---------- Cashiers + Shifts ---------- */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* Per-cashier performance */}
+          <div className="bg-panel border border-border rounded-2xl p-5 sm:p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Award className="w-4 h-4 text-primary" />
+                <h3 className="font-display text-base sm:text-lg font-bold text-text-primary">Cashier Performance</h3>
+              </div>
+              <span className="chip">{cashierBreakdown.length} active</span>
+            </div>
+            {cashierBreakdown.length === 0 ? (
+              <EmptyState icon={<Users className="w-6 h-6" />} label="No sales yet" sub="Cashiers' totals appear here as they ring up customers." />
+            ) : (
+              <div className="space-y-3">
+                {cashierBreakdown.map((c, i) => {
+                  const max = Math.max(...cashierBreakdown.map((x) => x.revenue || 0)) || 1;
+                  const pct = ((c.revenue || 0) / max) * 100;
+                  return (
+                    <div key={c.id} className="space-y-1.5">
+                      <div className="flex items-center justify-between gap-3 text-sm">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className={`w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-bold ${i === 0 ? 'bg-primary text-background' : 'bg-panel-2 text-text-secondary border border-border'}`}>{i + 1}</span>
+                          <span className="font-semibold text-text-primary truncate">{c.name}</span>
+                          <span className="text-[10px] text-text-muted uppercase tracking-wider">{c.role}</span>
+                        </div>
+                        <div className="text-right flex-shrink-0">
+                          <p className="font-display font-bold text-text-primary tabular-nums">{money(c.revenue)}</p>
+                          <p className="text-[10px] text-text-muted">{c.orders} order(s) • avg {money(c.averageOrder)}</p>
+                        </div>
+                      </div>
+                      <div className="h-1.5 rounded-full bg-panel-2 overflow-hidden">
+                        <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Shifts */}
+          <div className="bg-panel border border-border rounded-2xl p-5 sm:p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4 text-info" />
+                <h3 className="font-display text-base sm:text-lg font-bold text-text-primary">Shifts</h3>
+              </div>
+              <span className="chip">{shifts.length}</span>
+            </div>
+            {shifts.length === 0 ? (
+              <EmptyState icon={<Clock className="w-6 h-6" />} label="No shifts in this window" sub="When a cashier opens their till, it appears here." />
+            ) : (
+              <div className="space-y-2 max-h-[360px] overflow-y-auto -mr-2 pr-2">
+                {shifts.map((s) => {
+                  const isOpen = !s.endedAt;
+                  const expectedCash = (s.openingFloat || 0) + (s.cashRevenue || 0);
+                  const variance = s.closingFloat != null ? s.closingFloat - expectedCash : null;
+                  return (
+                    <div key={s.id} className={`p-3 rounded-xl border ${isOpen ? 'bg-success/5 border-success/30' : 'bg-panel-2 border-border'}`}>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className={`dot ${isOpen ? 'dot-live' : ''}`} style={!isOpen ? { background: '#52525B' } : undefined} />
+                          <span className="font-semibold text-text-primary text-sm truncate">{s.cashierName}</span>
+                          <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${isOpen ? 'bg-success/20 text-success' : 'bg-panel text-text-muted'}`}>{isOpen ? 'Open' : 'Closed'}</span>
+                        </div>
+                        <span className="font-display font-bold text-text-primary tabular-nums text-sm">{money(s.totalRevenue)}</span>
+                      </div>
+                      <div className="grid grid-cols-4 gap-2 text-[10px] text-text-muted">
+                        <span><span className="block text-text-secondary font-semibold">{s.transactionCount}</span>orders</span>
+                        <span><span className="block text-text-secondary font-semibold tabular-nums">{money(s.openingFloat)}</span>float</span>
+                        <span><span className="block text-text-secondary font-semibold tabular-nums">{money(s.cashRevenue)}</span>cash sales</span>
+                        {variance != null ? (
+                          <span><span className={`block font-semibold tabular-nums ${variance < 0 ? 'text-danger' : variance > 0 ? 'text-secondary' : 'text-success'}`}>{variance >= 0 ? '+' : ''}{money(variance)}</span>variance</span>
+                        ) : (
+                          <span><span className="block text-text-secondary font-semibold tabular-nums">{money(expectedCash)}</span>expected</span>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-text-muted mt-1.5">
+                        {new Date(s.startedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Harare' })} → {s.endedAt ? new Date(s.endedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Harare' }) : 'now'}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ---------- Top items ---------- */}
+        {topItems.length > 0 && (
+          <div className="bg-panel border border-border rounded-2xl p-5 sm:p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Flame className="w-4 h-4 text-secondary" />
+                <h3 className="font-display text-base sm:text-lg font-bold text-text-primary">Top Sellers</h3>
+              </div>
+              <span className="text-xs text-text-muted">{rangeLabel}</span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {topItems.map((t, i) => (
+                <div key={t.id} className="p-3 rounded-xl bg-panel-2 border border-border">
+                  <p className="text-[10px] text-text-muted uppercase tracking-wider">#{i + 1}</p>
+                  <p className="font-semibold text-text-primary text-sm leading-tight mt-1 line-clamp-2">{t.name}</p>
+                  <div className="flex items-baseline justify-between mt-2">
+                    <span className="font-display text-xl font-bold text-primary tabular-nums">{t.unitsSold}</span>
+                    <span className="text-[11px] text-text-muted">{money(t.revenue)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* ---------- Live feed + low stock ---------- */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 pb-6">
