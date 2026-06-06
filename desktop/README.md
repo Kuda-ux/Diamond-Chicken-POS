@@ -26,27 +26,39 @@ This launches the POS in a desktop window for testing.
 
 ---
 
-## Building the Windows installer
+## Sharing the app — what you actually give to the cashier PC
 
-You need **Node.js 18+** installed. Run from this `desktop/` folder:
+Pre-built distribution files live in `release/`:
+
+| File | What it is | When to use |
+|------|-----------|-------------|
+| **`DiamondChickenPOS-Setup-1.0.0.exe`** (77 MB) | **Real Windows installer** — runs a wizard, adds Start Menu + desktop shortcuts, registers in Add/Remove Programs | Recommended for cashier PCs |
+| **`DiamondChickenPOS-1.0.0-portable.zip`** (106 MB) | Portable folder — extract anywhere, double-click `Diamond Chicken POS.exe` to run. No install, no admin needed | USB-stick deployment, kiosks, testing |
+
+**To deploy:** copy the `Setup` `.exe` (or the ZIP) to the till PC by USB / WhatsApp / network share / Google Drive. Double-click → done. No additional software needed on the target machine.
+
+> **Note about Windows SmartScreen:** because we don't have a $200/year code-signing certificate, Windows will show *"Unrecognised app"* the first time. Tell the user to click *More info → Run anyway*. After the first run it stops asking.
+
+---
+
+## Rebuilding from source
+
+You need **Node.js 18+** and **NSIS** (`winget install NSIS.NSIS`). Run from this `desktop/` folder:
 
 ```powershell
 npm install
 npm run build
 ```
 
-This produces two files in `release/`:
+This runs three steps in sequence:
 
-| File | What it is |
-|------|-----------|
-| `DiamondChickenPOS-1.0.0-x64.exe` | Standard installer with Start Menu + desktop shortcuts (recommended) |
-| `DiamondChickenPOS-1.0.0-portable.exe` | Single-file portable — runs without installing |
+1. **`npm run package`** — uses `@electron/packager` to bundle the Electron runtime + your app code into `release/Diamond Chicken POS-win32-x64/`
+2. **`npm run zip`** — compresses that folder into `DiamondChickenPOS-1.0.0-portable.zip`
+3. **`npm run installer`** — runs NSIS against `installer.nsi` to produce `DiamondChickenPOS-Setup-1.0.0.exe`
 
-Give either file to the cashier PC. Double-click → installs / runs.
+You can run any step individually too.
 
-> **First time only:** if you don't yet have an icon, the build will use the
-> default Electron icon. To use a custom logo, drop a 256×256 `icon.ico` file
-> into `desktop/build/icon.ico` and rebuild.
+> **Custom icon:** drop a 256×256 `.ico` file at `build/icon.ico` and re-run. Without one, the app uses Electron's default.
 
 ---
 

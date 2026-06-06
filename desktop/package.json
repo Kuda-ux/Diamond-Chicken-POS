@@ -8,11 +8,13 @@
   "private": true,
   "scripts": {
     "start": "electron .",
-    "build": "electron-builder --win --x64",
-    "build:portable": "electron-builder --win portable --x64",
-    "build:installer": "electron-builder --win nsis --x64"
+    "package": "electron-packager . \"Diamond Chicken POS\" --platform=win32 --arch=x64 --out=release --overwrite --asar --app-version=1.0.0 --win32metadata.CompanyName=\"Diamond Chicken\" --win32metadata.FileDescription=\"Diamond Chicken POS\" --win32metadata.ProductName=\"Diamond Chicken POS\"",
+    "zip": "powershell -NoProfile -Command \"Compress-Archive -Path 'release/Diamond Chicken POS-win32-x64/*' -DestinationPath 'release/DiamondChickenPOS-1.0.0-portable.zip' -Force\"",
+    "installer": "powershell -NoProfile -Command \"& 'C:/Program Files (x86)/NSIS/makensis.exe' /V2 installer.nsi\"",
+    "build": "npm run package && npm run zip && npm run installer"
   },
   "devDependencies": {
+    "@electron/packager": "^20.0.1",
     "electron": "^31.0.0",
     "electron-builder": "^24.13.3"
   },
@@ -31,12 +33,28 @@
       "package.json"
     ],
     "extraResources": [
-      { "from": "build", "to": ".", "filter": ["icon.*"] }
+      {
+        "from": "build",
+        "to": ".",
+        "filter": [
+          "icon.*"
+        ]
+      }
     ],
     "win": {
       "target": [
-        { "target": "nsis", "arch": ["x64"] },
-        { "target": "portable", "arch": ["x64"] }
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
       ],
       "artifactName": "DiamondChickenPOS-${version}-${arch}.${ext}"
     },
