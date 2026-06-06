@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Diamond Chicken POS</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { width:100%; height:100%; overflow:hidden; }
+  body {
+    background: linear-gradient(135deg, #0B0B0F 0%, #18181F 100%);
+    color: #fff;
+    font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    user-select:none; -webkit-user-select:none;
+  }
+  .logo {
+    width:72px; height:72px; border-radius:18px;
+    background: linear-gradient(135deg, #F5A623 0%, #FFB949 100%);
+    display:flex; align-items:center; justify-content:center;
+    box-shadow: 0 8px 32px rgba(245, 166, 35, 0.4);
+    margin-bottom: 22px;
+    animation: pulse 2s ease-in-out infinite;
+  }
+  .logo svg { width:38px; height:38px; fill:#0B0B0F; }
+  h1 {
+    font-size: 22px; font-weight: 700; letter-spacing: -0.02em;
+    margin-bottom: 6px;
+  }
+  p { font-size: 12px; color: #71717A; letter-spacing: 0.05em; text-transform: uppercase; }
+  .loader {
+    margin-top: 26px; width: 200px; height: 3px;
+    background: rgba(255,255,255,0.06); border-radius: 999px; overflow: hidden;
+  }
+  .loader::after {
+    content: ''; display:block; width: 30%; height: 100%;
+    background: linear-gradient(90deg, transparent, #F5A623, transparent);
+    animation: slide 1.4s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%,100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+  }
+  @keyframes slide {
+    0%   { transform: translateX(-100%); }
+    100% { transform: translateX(400%); }
+  }
+</style>
+</head>
+<body>
+  <div class="logo">
+    <svg viewBox="0 0 24 24"><path d="M12 2L2 8l10 6 10-6-10-6zM2 16l10 6 10-6M2 12l10 6 10-6"/></svg>
+  </div>
+  <h1>Diamond Chicken POS</h1>
+  <p>Connecting…</p>
+  <div class="loader"></div>
+</body>
+</html>

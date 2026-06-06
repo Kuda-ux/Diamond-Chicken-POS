@@ -1,0 +1,56 @@
+{
+  "name": "diamond-chicken-pos-desktop",
+  "version": "1.0.0",
+  "description": "Diamond Chicken POS — Windows desktop app",
+  "main": "main.js",
+  "author": "Diamond Chicken",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win --x64",
+    "build:portable": "electron-builder --win portable --x64",
+    "build:installer": "electron-builder --win nsis --x64"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "co.zw.diamondchicken.pos",
+    "productName": "Diamond Chicken POS",
+    "copyright": "Copyright © 2026 Diamond Chicken",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "splash.html",
+      "package.json"
+    ],
+    "extraResources": [
+      { "from": "build", "to": ".", "filter": ["icon.*"] }
+    ],
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
+      ],
+      "artifactName": "DiamondChickenPOS-${version}-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Diamond Chicken POS",
+      "uninstallDisplayName": "Diamond Chicken POS"
+    },
+    "portable": {
+      "artifactName": "DiamondChickenPOS-${version}-portable.exe"
+    }
+  }
+}
