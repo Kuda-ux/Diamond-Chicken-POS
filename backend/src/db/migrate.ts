@@ -17,6 +17,7 @@ export async function runMigrations() {
       '001_initial_schema.sql',
       '002_stock_receipts.sql',
       '003_production_cleanup.sql',
+      '004_ingredients_recipes.sql',
     ];
 
     const client = await pool.connect();

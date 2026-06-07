@@ -9,6 +9,8 @@ import statsRoutes from './statsRoutes';
 import inventoryRoutes from './inventoryRoutes';
 import shiftsRoutes from './shiftsRoutes';
 import usersRoutes from './usersRoutes';
+import ingredientsRoutes from './ingredientsRoutes';
+import recipesRoutes from './recipesRoutes';
 
 const router = Router();
 
@@ -22,5 +24,7 @@ router.use('/stats', statsRoutes);
 router.use('/inventory', inventoryRoutes);
 router.use('/users', usersRoutes);
 router.use('/shifts', shiftsRoutes);
+router.use('/ingredients', ingredientsRoutes);
+router.use('/recipes', recipesRoutes);
 
 export default router;

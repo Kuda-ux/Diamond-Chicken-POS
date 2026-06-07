@@ -90,6 +90,36 @@ export const inventoryApi = {
   deleteReceipt: (id: string) => api.delete(`/inventory/receipts/${id}`),
 };
 
+export const ingredientsApi = {
+  list: () => api.get('/ingredients'),
+  create: (payload: {
+    name: string; unit?: string; quantity?: number;
+    lowStockThreshold?: number; unitCost?: number; notes?: string;
+  }) => api.post('/ingredients', payload),
+  update: (id: string, payload: {
+    name?: string; unit?: string; lowStockThreshold?: number;
+    unitCost?: number; notes?: string;
+  }) => api.patch(`/ingredients/${id}`, payload),
+  remove: (id: string) => api.delete(`/ingredients/${id}`),
+  restock: (id: string, payload: { quantity: number; mode?: 'add' | 'set'; lowStockThreshold?: number }) =>
+    api.post(`/ingredients/${id}/restock`, payload),
+  // Receipts (deliveries)
+  listReceipts: (params?: { from?: string; to?: string; ingredientId?: string; limit?: number }) =>
+    api.get('/ingredients/receipts', { params }),
+  createReceipts: (payload: {
+    receivedAt?: string; supplier?: string; notes?: string;
+    items: { ingredientId: string; quantity: number; unitCost?: number }[];
+  }) => api.post('/ingredients/receipts', payload),
+  deleteReceipt: (id: string) => api.delete(`/ingredients/receipts/${id}`),
+};
+
+export const recipesApi = {
+  listOverview: () => api.get('/recipes'),
+  get: (menuItemId: string) => api.get(`/recipes/${menuItemId}`),
+  set: (menuItemId: string, items: { ingredientId: string; quantityPerUnit: number }[]) =>
+    api.put(`/recipes/${menuItemId}`, { items }),
+};
+
 export const usersApi = {
   list: () => api.get('/users'),
   create: (payload: {

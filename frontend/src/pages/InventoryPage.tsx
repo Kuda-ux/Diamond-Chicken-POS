@@ -3,11 +3,13 @@ import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft, Search, Plus, Save, X, Package, AlertTriangle, CheckCircle2,
-  Boxes, Truck, History, Trash2, Calendar, Users,
+  Boxes, Truck, History, Trash2, Calendar, Users, Beaker, ChefHat,
 } from 'lucide-react';
 import { inventoryApi } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 import ReceiveStockModal from '../components/ReceiveStockModal';
+import IngredientsTab from '../components/IngredientsTab';
+import RecipesTab from '../components/RecipesTab';
 
 interface InventoryRow {
   id: string;
@@ -34,12 +36,12 @@ interface ReceiptRow {
   receivedByName?: string;
 }
 
-type Tab = 'stock' | 'receipts';
+type Tab = 'ingredients' | 'recipes' | 'stock' | 'receipts';
 
 export default function InventoryPage() {
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
-  const [tab, setTab] = useState<Tab>('stock');
+  const [tab, setTab] = useState<Tab>('ingredients');
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<'all' | 'low' | 'out'>('all');
   const [editing, setEditing] = useState<InventoryRow | null>(null);
@@ -122,9 +124,11 @@ export default function InventoryPage() {
 
         {/* Tabs */}
         <div className="max-w-[1400px] mx-auto px-4 sm:px-6">
-          <div className="flex gap-1 -mb-px">
-            <TabBtn active={tab === 'stock'} onClick={() => setTab('stock')}><Package className="w-4 h-4" /> Current Stock</TabBtn>
-            <TabBtn active={tab === 'receipts'} onClick={() => setTab('receipts')}><History className="w-4 h-4" /> Receipt History</TabBtn>
+          <div className="flex gap-1 -mb-px overflow-x-auto">
+            <TabBtn active={tab === 'ingredients'} onClick={() => setTab('ingredients')}><Beaker className="w-4 h-4" /> Ingredients</TabBtn>
+            <TabBtn active={tab === 'recipes'} onClick={() => setTab('recipes')}><ChefHat className="w-4 h-4" /> Recipes</TabBtn>
+            <TabBtn active={tab === 'stock'} onClick={() => setTab('stock')}><Package className="w-4 h-4" /> Menu Stock</TabBtn>
+            <TabBtn active={tab === 'receipts'} onClick={() => setTab('receipts')}><History className="w-4 h-4" /> Deliveries</TabBtn>
           </div>
         </div>
       </header>
@@ -228,6 +232,10 @@ export default function InventoryPage() {
             </p>
           </>
         )}
+
+        {tab === 'ingredients' && <IngredientsTab isAdmin={isAdmin} />}
+
+        {tab === 'recipes' && <RecipesTab />}
 
         {tab === 'receipts' && <ReceiptsHistory isAdmin={isAdmin} />}
       </div>

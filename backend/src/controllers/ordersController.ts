@@ -51,12 +51,35 @@ export async function createOrder(req: AuthRequest, res: Response) {
         return errorResponse(res, `${menuItem.name} is not available`, 400);
       }
 
-      const inventory = await sql`
-        SELECT quantity FROM inventory WHERE menu_item_id = ${item.menuItemId}
+      // Recipe-based stock check: if this menu item has a recipe, verify each
+      // ingredient has enough stock for the requested quantity.
+      const recipe = await sql`
+        SELECT r.ingredient_id, r.quantity_per_unit::float AS qpu, i.name, i.quantity::float AS stock, i.unit
+        FROM recipes r
+        JOIN ingredients i ON r.ingredient_id = i.id
+        WHERE r.menu_item_id = ${item.menuItemId} AND i.is_active = TRUE
       `;
 
-      if (inventory.length > 0 && inventory[0].quantity < item.quantity) {
-        return errorResponse(res, `Insufficient stock for ${menuItem.name}`, 400);
+      if (recipe.length > 0) {
+        // Use recipe-based check
+        for (const ing of recipe) {
+          const needed = parseFloat(ing.qpu) * item.quantity;
+          if (parseFloat(ing.stock) < needed) {
+            return errorResponse(
+              res,
+              `Insufficient ${ing.name} for ${menuItem.name} (need ${needed} ${ing.unit}, have ${ing.stock})`,
+              400
+            );
+          }
+        }
+      } else {
+        // Backward compat: no recipe → use legacy menu-item inventory check
+        const inventory = await sql`
+          SELECT quantity FROM inventory WHERE menu_item_id = ${item.menuItemId}
+        `;
+        if (inventory.length > 0 && inventory[0].quantity < item.quantity) {
+          return errorResponse(res, `Insufficient stock for ${menuItem.name}`, 400);
+        }
       }
 
       const unitPrice = new Decimal(menuItem.price);
@@ -104,11 +127,32 @@ export async function createOrder(req: AuthRequest, res: Response) {
         )
       `;
 
-      await sql`
-        UPDATE inventory
-        SET quantity = quantity - ${item.quantity}, last_updated = now()
+      // Deduct stock. If the menu item has a recipe, deduct each ingredient
+      // by (quantity_per_unit × order quantity). Otherwise fall back to the
+      // legacy per-menu-item inventory deduction.
+      const recipeRows = await sql`
+        SELECT ingredient_id, quantity_per_unit::float AS qpu
+        FROM recipes
         WHERE menu_item_id = ${item.menuItemId}
       `;
+
+      if (recipeRows.length > 0) {
+        for (const r of recipeRows) {
+          const deduct = parseFloat(r.qpu) * item.quantity;
+          await sql`
+            UPDATE ingredients
+            SET quantity = GREATEST(0, quantity - ${deduct}),
+                updated_at = now()
+            WHERE id = ${r.ingredient_id}
+          `;
+        }
+      } else {
+        await sql`
+          UPDATE inventory
+          SET quantity = quantity - ${item.quantity}, last_updated = now()
+          WHERE menu_item_id = ${item.menuItemId}
+        `;
+      }
     }
 
     const fullOrder = await sql`
