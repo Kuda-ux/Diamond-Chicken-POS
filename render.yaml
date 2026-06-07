@@ -17,6 +17,12 @@ services:
         value: 8h
       - key: RESTAURANT_NAME
         value: Diamond Chicken
+      - key: RESTAURANT_ADDRESS
+        value: Naiks Corner, Herbert Chitepo Street, Bulawayo
+      - key: RESTAURANT_PHONE
+        value: +263 771 234 567
+      - key: RESTAURANT_VAT
+        value: VAT123456789
       - key: TAX_RATE
         value: "0.15"
       - key: FRONTEND_URL
