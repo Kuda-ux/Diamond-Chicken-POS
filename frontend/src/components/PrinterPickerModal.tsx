@@ -29,6 +29,8 @@ export default function PrinterPickerModal({ onClose, onSaved }: Props) {
 
   useEffect(() => {
     (async () => {
+      console.log('[PrinterPicker] isDesktop:', isDesktop());
+      console.log('[PrinterPicker] window.diamond:', window.diamond);
       const list = await listPrinters();
       setPrinters(list);
       if (!selected) {
@@ -75,6 +77,25 @@ export default function PrinterPickerModal({ onClose, onSaved }: Props) {
             desktop app on the till machine.
           </p>
           <button onClick={onClose} className="btn btn-primary w-full">Got it</button>
+        </div>
+      </div>
+    );
+  }
+
+  // Additional check: if window.diamond is missing, show error
+  if (!window.diamond) {
+    return (
+      <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/75 backdrop-blur-md p-4">
+        <div className="w-full max-w-md bg-panel border border-border rounded-2xl shadow-2xl p-6">
+          <div className="flex items-center gap-3 mb-3">
+            <AlertTriangle className="w-5 h-5 text-danger" />
+            <h2 className="font-display text-lg font-bold">Desktop bridge not detected</h2>
+          </div>
+          <p className="text-sm text-text-secondary mb-4">
+            The desktop app bridge is not available. Make sure you're running the Diamond Chicken
+            desktop app (not a browser). If you are in the desktop app, try restarting it.
+          </p>
+          <button onClick={onClose} className="btn btn-primary w-full">Close</button>
         </div>
       </div>
     );

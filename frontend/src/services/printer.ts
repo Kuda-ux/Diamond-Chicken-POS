@@ -62,10 +62,17 @@ export const setSavedPrinter = (name: string): void => {
 };
 
 export const listPrinters = async (): Promise<DesktopPrinter[]> => {
-  if (!isDesktop()) return [];
+  if (!isDesktop()) {
+    console.log('[Printer] Not running in desktop mode');
+    return [];
+  }
   try {
-    return await window.diamond!.printers.list();
-  } catch {
+    console.log('[Printer] Fetching printer list...');
+    const result = await window.diamond!.printers.list();
+    console.log('[Printer] Got printers:', result);
+    return result;
+  } catch (err) {
+    console.error('[Printer] Failed to list printers:', err);
     return [];
   }
 };
