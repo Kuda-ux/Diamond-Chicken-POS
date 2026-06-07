@@ -143,8 +143,8 @@ const num = (v: number | string | undefined | null): number =>
 
 const fmt = (v: number | string | undefined | null): string => num(v).toFixed(2);
 
-const escapeHtml = (s: string): string =>
-  s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
+const escapeHtml = (s: string | undefined | null): string =>
+  String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 
 const orderTypeLabel = (t?: string): string =>
   t === 'dine_in' ? 'DINE-IN' : t === 'delivery' ? 'DELIVERY' : 'TAKEAWAY';
@@ -167,7 +167,10 @@ const paymentLabel = (m?: string): string => {
  * Width: 72mm content area inside 80mm paper (4mm margin each side).
  */
 export const renderThermalReceipt = (r: ReceiptPayload): string => {
-  const created = new Date(r.createdAt);
+  // Defensive defaults in case the API response is missing fields
+  const restaurant = r.restaurant || ({} as ReceiptPayload['restaurant']);
+  const items = Array.isArray(r.items) ? r.items : [];
+  const created = new Date(r.createdAt || Date.now());
   const dateStr = created.toLocaleDateString('en-GB', {
     year: 'numeric', month: '2-digit', day: '2-digit', timeZone: 'Africa/Harare',
   });
@@ -175,13 +178,13 @@ export const renderThermalReceipt = (r: ReceiptPayload): string => {
     hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Harare',
   });
 
-  const itemsHtml = r.items.map((it) => `
+  const itemsHtml = items.map((it) => `
     <tr>
-      <td class="qty">${it.quantity}×</td>
-      <td class="name">${escapeHtml(it.name)}</td>
-      <td class="amt">$${fmt(it.subtotal)}</td>
+      <td class="qty">${num(it?.quantity)}×</td>
+      <td class="name">${escapeHtml(it?.name)}</td>
+      <td class="amt">$${fmt(it?.subtotal)}</td>
     </tr>
-    <tr class="unit-row"><td></td><td colspan="2">@ $${fmt(it.unitPrice)} each</td></tr>
+    <tr class="unit-row"><td></td><td colspan="2">@ $${fmt(it?.unitPrice)} each</td></tr>
   `).join('');
 
   const tableInfo = r.tableNumber ? ` • TABLE ${r.tableNumber}` : '';
@@ -222,10 +225,10 @@ export const renderThermalReceipt = (r: ReceiptPayload): string => {
 </style>
 </head><body>
   <div class="center">
-    <div class="big">${escapeHtml(r.restaurant.name)}</div>
-    <div class="xs">${escapeHtml(r.restaurant.address)}</div>
-    <div class="xs">Tel: ${escapeHtml(r.restaurant.phone)}</div>
-    ${r.restaurant.vatNumber ? `<div class="xs">${escapeHtml(r.restaurant.vatNumber)}</div>` : ''}
+    <div class="big">${escapeHtml(restaurant.name || 'Diamond Chicken')}</div>
+    <div class="xs">${escapeHtml(restaurant.address)}</div>
+    <div class="xs">Tel: ${escapeHtml(restaurant.phone)}</div>
+    ${restaurant.vatNumber ? `<div class="xs">${escapeHtml(restaurant.vatNumber)}</div>` : ''}
   </div>
 
   <hr class="hr">
@@ -243,7 +246,7 @@ export const renderThermalReceipt = (r: ReceiptPayload): string => {
 
   <div class="row"><span>Subtotal</span><span>$${fmt(r.subtotal)}</span></div>
   ${discount > 0 ? `<div class="row"><span>Discount</span><span>-$${fmt(discount)}</span></div>` : ''}
-  <div class="row"><span>VAT (${(((r.restaurant.taxRate ?? 0.15) * 100) | 0)}%)</span><span>$${fmt(r.taxAmount)}</span></div>
+  <div class="row"><span>VAT (${(((restaurant.taxRate ?? 0.15) * 100) | 0)}%)</span><span>$${fmt(r.taxAmount)}</span></div>
 
   <hr class="double">
 
