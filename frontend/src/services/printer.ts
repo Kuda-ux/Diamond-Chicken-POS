@@ -290,13 +290,25 @@ export const printReceipt = async (payload: ReceiptPayload): Promise<PrintResult
   const html = renderThermalReceipt(payload);
 
   if (isDesktop()) {
-    const deviceName = getSavedPrinter() || (await autoDetectPrinter());
-    if (deviceName && getSavedPrinter() !== deviceName) {
-      // Persist the auto-detected printer so the next print is silent.
-      setSavedPrinter(deviceName);
+    try {
+      const deviceName = getSavedPrinter() || (await autoDetectPrinter());
+      if (deviceName && getSavedPrinter() !== deviceName) {
+        // Persist the auto-detected printer so the next print is silent.
+        setSavedPrinter(deviceName);
+      }
+      const result = await window.diamond!.printers.print(html, { deviceName, copies: 1 });
+      if (result.ok) {
+        return { ok: true };
+      } else {
+        console.error('[Printer] Desktop print failed, falling back to browser:', result.error);
+        // Fall back to browser print if desktop print fails
+        return printViaSystemDialog(html);
+      }
+    } catch (err) {
+      console.error('[Printer] Desktop bridge error, falling back to browser:', err);
+      // Fall back to browser print if bridge fails
+      return printViaSystemDialog(html);
     }
-    const result = await window.diamond!.printers.print(html, { deviceName, copies: 1 });
-    return result.ok ? { ok: true } : { ok: false, error: result.error };
   }
 
   // Browser fallback: open new tab, auto-trigger print, close after.
