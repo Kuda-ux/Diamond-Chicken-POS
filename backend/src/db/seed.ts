@@ -6,27 +6,16 @@ async function seed() {
   console.log('🌱 Seeding database...');
 
   try {
-    const adminPasswordHash = await bcrypt.hash('Admin@1234', 12);
-    const managerPasswordHash = await bcrypt.hash('Manager@1234', 12);
-    const pin1Hash = await bcrypt.hash('1234', 10);
-    const pin2Hash = await bcrypt.hash('5678', 10);
-    const kitchenPinHash = await bcrypt.hash('9999', 10);
+    const adminEmail = process.env.ADMIN_EMAIL || 'admin@diamondchicken.co.zw';
+    const adminPassword = process.env.ADMIN_PASSWORD || 'Admin@1234';
+    const adminName = process.env.ADMIN_NAME || 'Admin';
+    const adminPasswordHash = await bcrypt.hash(adminPassword, 12);
 
     await sql`
       INSERT INTO users (name, email, password_hash, role)
       VALUES 
-        ('Admin', 'admin@diamondchicken.co.zw', ${adminPasswordHash}, 'admin'),
-        ('Manager', 'manager@diamondchicken.co.zw', ${managerPasswordHash}, 'manager')
+        (${adminName}, ${adminEmail}, ${adminPasswordHash}, 'admin')
       ON CONFLICT (email) DO NOTHING
-    `;
-
-    await sql`
-      INSERT INTO users (name, pin, role)
-      VALUES 
-        ('Tendai Moyo', ${pin1Hash}, 'cashier'),
-        ('Rudo Chikwanda',${kitchenPinHash}in2Hash}, 'cashier'),
-        ('Chef Blessing', NULL, 'kitchen')
-      ON CONFLICT DO NOTHING
     `;
 
     const categories = [
