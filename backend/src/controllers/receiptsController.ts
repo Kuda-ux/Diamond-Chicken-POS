@@ -43,7 +43,7 @@ export async function getReceiptData(req: Request, res: Response) {
 
     const restaurant = {
       name: process.env.RESTAURANT_NAME || 'Diamond Chicken',
-      address: process.env.RESTAURANT_ADDRESS || '123 Samora Machel Ave, Harare',
+      address: process.env.RESTAURANT_ADDRESS || 'Naiks Corner, Herbert Chitepo Street, Bulawayo',
       phone: process.env.RESTAURANT_PHONE || '+263 77 000 0000',
       vatNumber: process.env.RESTAURANT_VAT || 'VAT: 10000000',
       taxRate: parseFloat(process.env.TAX_RATE || '0.15'),
@@ -66,7 +66,7 @@ export async function getReceiptHtml(req: Request, res: Response) {
     }
 
     const restaurantName = process.env.RESTAURANT_NAME || 'Diamond Chicken';
-    const restaurantAddr = process.env.RESTAURANT_ADDRESS || '123 Samora Machel Ave, Harare';
+    const restaurantAddr = process.env.RESTAURANT_ADDRESS || 'Naiks Corner, Herbert Chitepo Street, Bulawayo';
     const restaurantPhone = process.env.RESTAURANT_PHONE || '+263 77 000 0000';
     const vatNumber = process.env.RESTAURANT_VAT || 'VAT: 10000000';
 

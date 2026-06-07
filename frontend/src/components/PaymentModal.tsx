@@ -1,14 +1,14 @@
 import { useState } from 'react';
 import {
   X, Banknote, Smartphone, QrCode, CreditCard, Building2, CheckCircle2, Loader2,
-  Printer, MessageCircle, ExternalLink, Usb, ArrowRight, Home, Truck, UtensilsCrossed,
+  Printer, MessageCircle, ExternalLink, Settings as SettingsIcon, ArrowRight, Home, Truck, UtensilsCrossed,
 } from 'lucide-react';
 import { ordersApi, paymentsApi, receiptsApi } from '../services/api';
 import { useCartStore } from '../stores/cartStore';
 import {
-  connectPrinter, disconnectPrinter, isPrinterConnected,
-  openPrintDialog, printReceipt, whatsAppShareUrl,
+  isDesktop, getSavedPrinter, openPrintDialog, printReceipt, whatsAppShareUrl,
 } from '../services/printer';
+import PrinterPickerModal from './PrinterPickerModal';
 
 type PaymentMethod = 'cash' | 'ecocash' | 'innbucks' | 'zipit' | 'card';
 
@@ -41,7 +41,8 @@ export default function PaymentModal({ open, onClose, onSuccess }: PaymentModalP
   const [error, setError] = useState('');
   const [result, setResult] = useState<any>(null);
   const [printStatus, setPrintStatus] = useState<string>('');
-  const [printerReady, setPrinterReady] = useState(isPrinterConnected());
+  const [printerPickerOpen, setPrinterPickerOpen] = useState(false);
+  const [savedPrinter, setSavedPrinterState] = useState<string>(getSavedPrinter());
 
   if (!open) return null;
 
@@ -101,20 +102,21 @@ export default function PaymentModal({ open, onClose, onSuccess }: PaymentModalP
     reset(); cart.clearCart(); onSuccess(orderNumber, finalChange);
   };
 
-  const handleConnectPrinter = async () => {
-    setPrintStatus('');
-    try { await connectPrinter(); setPrinterReady(true); setPrintStatus('Printer connected ✓'); }
-    catch (e: any) { setPrintStatus(e.message || 'Failed to connect'); }
-  };
   const handleThermalPrint = async () => {
     if (!result) return;
     setPrintStatus('Printing…');
     try {
       const receiptRes = await receiptsApi.get(result.orderId);
       const { receipt, restaurant } = receiptRes.data.data;
-      await printReceipt({ ...receipt, restaurant, change: result.change });
-      setPrintStatus('Printed ✓');
-    } catch (e: any) { setPrintStatus(e.message || 'Print failed'); }
+      const res = await printReceipt({ ...receipt, restaurant, change: result.change });
+      if (res.ok) {
+        setPrintStatus(res.fallback ? 'Sent to print dialog ✓' : 'Printed ✓');
+      } else {
+        setPrintStatus(res.error || 'Print failed');
+      }
+    } catch (e: any) {
+      setPrintStatus(e?.response?.data?.message || e?.message || 'Print failed');
+    }
   };
   const handleBrowserPrint = () => { if (result) openPrintDialog(receiptsApi.htmlUrl(result.orderId)); };
   const handleWhatsApp = () => {
@@ -123,7 +125,6 @@ export default function PaymentModal({ open, onClose, onSuccess }: PaymentModalP
     const totalStr = cart.getTotal().toFixed(2);
     window.open(whatsAppShareUrl(url, result.orderNumber, totalStr), '_blank');
   };
-  const handleDisconnectPrinter = async () => { await disconnectPrinter(); setPrinterReady(false); setPrintStatus('Printer disconnected'); };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md p-4 animate-fade-in">
@@ -195,23 +196,32 @@ export default function PaymentModal({ open, onClose, onSuccess }: PaymentModalP
 
             {/* Receipt actions */}
             <div className="mb-4">
-              <p className="text-xs text-text-muted uppercase tracking-wider mb-2">Receipt</p>
-              <div className="grid grid-cols-3 gap-2">
-                {printerReady ? (
-                  <ActionButton onClick={handleThermalPrint} Icon={Printer} label="Print" tint="primary" />
-                ) : (
-                  <ActionButton onClick={handleConnectPrinter} Icon={Usb} label="Connect" tint="default" />
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs text-text-muted uppercase tracking-wider">Receipt</p>
+                {isDesktop() && (
+                  <button
+                    onClick={() => setPrinterPickerOpen(true)}
+                    className="flex items-center gap-1 text-[10px] text-text-muted hover:text-primary transition-colors"
+                  >
+                    <SettingsIcon className="w-3 h-3" />
+                    {savedPrinter ? savedPrinter : 'Choose printer'}
+                  </button>
                 )}
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <ActionButton onClick={handleThermalPrint} Icon={Printer} label="Print" tint="primary" />
                 <ActionButton onClick={handleBrowserPrint} Icon={ExternalLink} label="Browser" tint="info" />
                 <ActionButton onClick={handleWhatsApp} Icon={MessageCircle} label="WhatsApp" tint="success" />
               </div>
-              {printerReady && (
-                <button onClick={handleDisconnectPrinter} className="mt-2 w-full text-xs text-text-muted hover:text-text-secondary">
-                  Disconnect printer
-                </button>
-              )}
               {printStatus && <div className="mt-2 text-center text-xs text-text-secondary">{printStatus}</div>}
             </div>
+
+            {printerPickerOpen && (
+              <PrinterPickerModal
+                onClose={() => setPrinterPickerOpen(false)}
+                onSaved={(name) => { setSavedPrinterState(name); setPrinterPickerOpen(false); }}
+              />
+            )}
 
             <button onClick={handleDone} className="btn btn-primary w-full py-4 text-base">
               New Order <ArrowRight className="w-4 h-4" />

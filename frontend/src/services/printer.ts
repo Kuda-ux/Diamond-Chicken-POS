@@ -1,257 +1,385 @@
 /**
- * Thermal printer service — ESC/POS commands via Web Serial API.
- * Compatible with Epson TM-series (TM-T20, TM-T88, TM-m30) and most 58mm/80mm thermal printers.
+ * Receipt printer service.
  *
- * Usage:
- *   await connectPrinter();        // prompts user to choose USB/Serial port, stored in localStorage
- *   await printReceipt(data);      // sends ESC/POS bytes
+ * Strategy
+ * --------
+ * - **Desktop (Electron)**: print silently to a Windows printer (e.g. the
+ *   "POS-80" thermal printer driver) via the `window.diamond.printers` IPC
+ *   bridge defined in `desktop/preload.js`. No driver code required —
+ *   whatever Windows printer driver the till has installed is used directly.
+ * - **Browser**: open the print dialog with the receipt HTML pre-loaded.
+ *   The cashier picks the POS-80 in the OS dialog and clicks Print. This is
+ *   the universal fallback when running outside the desktop app.
+ *
+ * The previous Web Serial / WebUSB approach was removed: POS-80 USB thermal
+ * printers register as USB **printer-class** devices (not USB-serial), so
+ * `navigator.serial.requestPort()` would always show an empty picker and
+ * throw "No port selected by the user".
  */
 
-// ESC/POS commands
-const ESC = 0x1b;
-const GS = 0x1d;
-const LF = 0x0a;
+// ----------------------------------------------------------------------------
+// Bridge type for the Electron preload (window.diamond)
+// ----------------------------------------------------------------------------
+export interface DesktopPrinter {
+  name: string;
+  displayName: string;
+  description: string;
+  status: number;
+  isDefault: boolean;
+}
 
-const CMD = {
-  INIT: new Uint8Array([ESC, 0x40]),
-  CUT: new Uint8Array([GS, 0x56, 0x42, 0x00]),
-  ALIGN_LEFT: new Uint8Array([ESC, 0x61, 0x00]),
-  ALIGN_CENTER: new Uint8Array([ESC, 0x61, 0x01]),
-  ALIGN_RIGHT: new Uint8Array([ESC, 0x61, 0x02]),
-  BOLD_ON: new Uint8Array([ESC, 0x45, 0x01]),
-  BOLD_OFF: new Uint8Array([ESC, 0x45, 0x00]),
-  DOUBLE_ON: new Uint8Array([GS, 0x21, 0x11]), // double width + height
-  DOUBLE_OFF: new Uint8Array([GS, 0x21, 0x00]),
-  FEED_3: new Uint8Array([ESC, 0x64, 0x03]),
-  LF_BYTE: new Uint8Array([LF]),
+interface DiamondBridge {
+  isDesktop: true;
+  platform: string;
+  version: string;
+  printers: {
+    list: () => Promise<DesktopPrinter[]>;
+    print: (
+      html: string,
+      opts: { deviceName?: string; copies?: number; widthMicrons?: number; heightMicrons?: number }
+    ) => Promise<{ ok: boolean; error?: string }>;
+  };
+}
+
+declare global {
+  interface Window {
+    diamond?: DiamondBridge;
+  }
+}
+
+export const isDesktop = (): boolean => !!window.diamond?.isDesktop;
+
+// ----------------------------------------------------------------------------
+// Saved printer preference (per-machine, in localStorage)
+// ----------------------------------------------------------------------------
+const STORAGE_KEY = 'diamond.printerName';
+
+export const getSavedPrinter = (): string =>
+  (typeof localStorage !== 'undefined' && localStorage.getItem(STORAGE_KEY)) || '';
+
+export const setSavedPrinter = (name: string): void => {
+  if (typeof localStorage !== 'undefined') localStorage.setItem(STORAGE_KEY, name);
 };
 
-type SerialPortLike = any;
-
-let activePort: SerialPortLike | null = null;
-
-function hasSerialSupport(): boolean {
-  return typeof navigator !== 'undefined' && 'serial' in navigator;
-}
-
-export async function connectPrinter(): Promise<void> {
-  if (!hasSerialSupport()) {
-    throw new Error('Web Serial API not supported. Use Chrome/Edge on desktop.');
-  }
-  const port = await (navigator as any).serial.requestPort();
-  await port.open({ baudRate: 9600 });
-  activePort = port;
-}
-
-export function isPrinterConnected(): boolean {
-  return activePort !== null;
-}
-
-export async function disconnectPrinter(): Promise<void> {
-  if (activePort) {
-    try { await activePort.close(); } catch { /* noop */ }
-    activePort = null;
-  }
-}
-
-async function writeBytes(data: Uint8Array): Promise<void> {
-  if (!activePort) throw new Error('Printer not connected. Click "Connect Printer" first.');
-  const writer = activePort.writable.getWriter();
+export const listPrinters = async (): Promise<DesktopPrinter[]> => {
+  if (!isDesktop()) return [];
   try {
-    await writer.write(data);
-  } finally {
-    writer.releaseLock();
+    return await window.diamond!.printers.list();
+  } catch {
+    return [];
   }
+};
+
+/**
+ * Best-guess auto-detect: looks for a printer whose name contains "POS",
+ * "thermal", or "80". If none match, returns the system default.
+ */
+export const autoDetectPrinter = async (): Promise<string> => {
+  const printers = await listPrinters();
+  if (printers.length === 0) return '';
+  const score = (n: string) => {
+    const s = n.toLowerCase();
+    let r = 0;
+    if (s.includes('pos-80') || s.includes('pos 80') || s.includes('pos80')) r += 100;
+    if (s.includes('pos')) r += 50;
+    if (s.includes('thermal')) r += 30;
+    if (s.includes('80mm') || s.includes('80 mm') || s.includes('80')) r += 10;
+    if (s.includes('receipt')) r += 20;
+    return r;
+  };
+  const sorted = [...printers].sort((a, b) => score(b.name) - score(a.name));
+  if (score(sorted[0].name) > 0) return sorted[0].name;
+  const def = printers.find((p) => p.isDefault);
+  return (def || printers[0]).name;
+};
+
+// ----------------------------------------------------------------------------
+// Receipt rendering — produces an 80mm-wide HTML document optimised for
+// thermal printers. We do not depend on the backend HTML renderer because
+// thermal printers need a much narrower / monochrome layout.
+// ----------------------------------------------------------------------------
+export interface ReceiptItem {
+  name: string;
+  quantity: number;
+  unitPrice: number | string;
+  subtotal: number | string;
 }
 
-function encode(text: string): Uint8Array {
-  return new TextEncoder().encode(text);
-}
-
-function concat(...parts: Uint8Array[]): Uint8Array {
-  const total = parts.reduce((sum, p) => sum + p.length, 0);
-  const out = new Uint8Array(total);
-  let offset = 0;
-  for (const p of parts) {
-    out.set(p, offset);
-    offset += p.length;
-  }
-  return out;
-}
-
-// 32 chars wide (58mm) or 48 chars (80mm). We use 32 for safe default.
-const WIDTH = 32;
-
-function pad(left: string, right: string, width = WIDTH): string {
-  const spaces = Math.max(1, width - left.length - right.length);
-  return left + ' '.repeat(spaces) + right;
-}
-
-function line(char = '-', width = WIDTH): string {
-  return char.repeat(width);
-}
-
-function wrap(text: string, width = WIDTH): string[] {
-  const words = text.split(' ');
-  const lines: string[] = [];
-  let cur = '';
-  for (const w of words) {
-    if ((cur + ' ' + w).trim().length > width) {
-      if (cur) lines.push(cur);
-      cur = w;
-    } else {
-      cur = (cur + ' ' + w).trim();
-    }
-  }
-  if (cur) lines.push(cur);
-  return lines.length ? lines : [''];
-}
-
-export interface PrintReceiptData {
+export interface ReceiptPayload {
   orderNumber: string;
+  createdAt: string | Date;
   cashierName?: string;
-  orderType: string;
-  tableNumber?: string | null;
-  createdAt: string;
-  items: Array<{ quantity: number; unitPrice: string; subtotal: string; menuItem?: { name: string } }>;
-  subtotal: string | number;
-  taxAmount: string | number;
-  discountAmount?: string | number;
-  totalAmount: string | number;
-  paymentMethod?: string | null;
+  orderType?: 'dine_in' | 'takeaway' | 'delivery' | string;
+  tableNumber?: number | null;
+  items: ReceiptItem[];
+  subtotal: number | string;
+  taxAmount: number | string;
+  discountAmount?: number | string;
+  totalAmount: number | string;
+  paymentMethod?: string;
+  paymentStatus?: string;
   paymentReference?: string | null;
   notes?: string | null;
-  restaurant: { name: string; address: string; phone: string; vatNumber: string };
   change?: number;
-}
-
-export async function printReceipt(data: PrintReceiptData): Promise<void> {
-  if (!activePort) {
-    throw new Error('Printer not connected. Click "Connect Printer" first.');
-  }
-
-  const fmt = (v: string | number | undefined) => {
-    const n = typeof v === 'string' ? parseFloat(v) : Number(v || 0);
-    return `$${n.toFixed(2)}`;
+  restaurant: {
+    name: string;
+    address: string;
+    phone: string;
+    vatNumber?: string;
+    taxRate?: number;
   };
-
-  const created = new Date(data.createdAt);
-  const dateStr = created.toLocaleDateString('en-ZW');
-  const timeStr = created.toLocaleTimeString('en-ZW', { hour: '2-digit', minute: '2-digit' });
-
-  const methodLabel: Record<string, string> = {
-    cash: 'Cash (USD)',
-    ecocash: 'EcoCash',
-    innbucks: 'InnBucks',
-    zipit: 'ZIPIT',
-    visa: 'Visa',
-    mastercard: 'Mastercard',
-  };
-  const paymentLabel = methodLabel[data.paymentMethod || ''] || (data.paymentMethod || 'Pending');
-  const orderTypeLabel =
-    data.orderType === 'dine_in' ? 'Dine-in' : data.orderType === 'delivery' ? 'Delivery' : 'Takeaway';
-
-  const parts: Uint8Array[] = [];
-  parts.push(CMD.INIT);
-
-  // Header — centered, bold, double size
-  parts.push(CMD.ALIGN_CENTER);
-  parts.push(CMD.BOLD_ON);
-  parts.push(CMD.DOUBLE_ON);
-  parts.push(encode(data.restaurant.name + '\n'));
-  parts.push(CMD.DOUBLE_OFF);
-  parts.push(CMD.BOLD_OFF);
-  parts.push(encode(data.restaurant.address + '\n'));
-  parts.push(encode(data.restaurant.phone + '\n'));
-  parts.push(encode(data.restaurant.vatNumber + '\n'));
-  parts.push(encode(line('=') + '\n'));
-
-  // Meta rows — left aligned
-  parts.push(CMD.ALIGN_LEFT);
-  parts.push(encode(pad('Receipt:', data.orderNumber) + '\n'));
-  parts.push(encode(pad('Date:', `${dateStr} ${timeStr}`) + '\n'));
-  parts.push(encode(pad('Type:', `${orderTypeLabel}${data.tableNumber ? ` T${data.tableNumber}` : ''}`) + '\n'));
-  if (data.cashierName) {
-    parts.push(encode(pad('Cashier:', data.cashierName) + '\n'));
-  }
-  parts.push(encode(line('-') + '\n'));
-
-  // Items
-  for (const it of data.items) {
-    const name = it.menuItem?.name || 'Item';
-    const qtyStr = `${it.quantity}x`;
-    const price = fmt(it.subtotal);
-    const nameLine = `${qtyStr} ${name}`;
-    const wrapped = wrap(nameLine, WIDTH - price.length - 1);
-    // First line ends with total
-    parts.push(encode(pad(wrapped[0], price) + '\n'));
-    for (let i = 1; i < wrapped.length; i++) {
-      parts.push(encode('  ' + wrapped[i] + '\n'));
-    }
-  }
-
-  parts.push(encode(line('-') + '\n'));
-  parts.push(encode(pad('Subtotal', fmt(data.subtotal)) + '\n'));
-  if (data.discountAmount && Number(data.discountAmount) > 0) {
-    parts.push(encode(pad('Discount', '-' + fmt(data.discountAmount)) + '\n'));
-  }
-  parts.push(encode(pad('VAT (15%)', fmt(data.taxAmount)) + '\n'));
-  parts.push(encode(line('=') + '\n'));
-
-  // Total — bold double
-  parts.push(CMD.BOLD_ON);
-  parts.push(CMD.DOUBLE_ON);
-  parts.push(encode(pad('TOTAL', fmt(data.totalAmount), WIDTH / 2) + '\n'));
-  parts.push(CMD.DOUBLE_OFF);
-  parts.push(CMD.BOLD_OFF);
-  parts.push(encode(line('=') + '\n'));
-
-  // Payment
-  parts.push(CMD.BOLD_ON);
-  parts.push(encode(pad('Paid:', paymentLabel) + '\n'));
-  parts.push(CMD.BOLD_OFF);
-  if (data.change !== undefined && data.change > 0) {
-    parts.push(encode(pad('Change', fmt(data.change)) + '\n'));
-  }
-  if (data.paymentReference) {
-    parts.push(encode('Ref: ' + data.paymentReference + '\n'));
-  }
-
-  if (data.notes) {
-    parts.push(encode(line('-') + '\n'));
-    for (const ln of wrap('Note: ' + data.notes)) {
-      parts.push(encode(ln + '\n'));
-    }
-  }
-
-  parts.push(encode(line('=') + '\n'));
-
-  // Trilingual thank-you
-  parts.push(CMD.ALIGN_CENTER);
-  parts.push(CMD.BOLD_ON);
-  parts.push(encode('Thank you - come again!\n'));
-  parts.push(CMD.BOLD_OFF);
-  parts.push(encode('Tinokutendai - dzokaizve!\n'));
-  parts.push(encode('Siyabonga - buyani futhi!\n'));
-  parts.push(encode('\n'));
-  parts.push(encode('ZIMRA-compliant fiscal receipt\n'));
-
-  parts.push(CMD.FEED_3);
-  parts.push(CMD.CUT);
-
-  await writeBytes(concat(...parts));
 }
 
-export async function openPrintDialog(receiptUrl: string): Promise<void> {
-  // Fallback when no thermal printer — open browser print dialog
-  const w = window.open(receiptUrl + '?print=1', '_blank', 'width=420,height=800');
-  if (!w) {
-    // Popup blocked — redirect user to the receipt page
-    window.location.href = receiptUrl + '?print=1';
+const num = (v: number | string | undefined | null): number =>
+  typeof v === 'number' ? v : parseFloat(String(v || 0)) || 0;
+
+const fmt = (v: number | string | undefined | null): string => num(v).toFixed(2);
+
+const escapeHtml = (s: string): string =>
+  s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
+
+const orderTypeLabel = (t?: string): string =>
+  t === 'dine_in' ? 'DINE-IN' : t === 'delivery' ? 'DELIVERY' : 'TAKEAWAY';
+
+const paymentLabel = (m?: string): string => {
+  switch ((m || '').toLowerCase()) {
+    case 'cash': return 'CASH (USD)';
+    case 'ecocash': return 'ECOCASH';
+    case 'innbucks': return 'INNBUCKS';
+    case 'zipit': return 'ZIPIT';
+    case 'visa':
+    case 'mastercard':
+    case 'card': return 'CARD';
+    default: return (m || 'PENDING').toUpperCase();
   }
+};
+
+/**
+ * Renders an 80mm thermal-friendly HTML receipt.
+ * Width: 72mm content area inside 80mm paper (4mm margin each side).
+ */
+export const renderThermalReceipt = (r: ReceiptPayload): string => {
+  const created = new Date(r.createdAt);
+  const dateStr = created.toLocaleDateString('en-GB', {
+    year: 'numeric', month: '2-digit', day: '2-digit', timeZone: 'Africa/Harare',
+  });
+  const timeStr = created.toLocaleTimeString('en-GB', {
+    hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Harare',
+  });
+
+  const itemsHtml = r.items.map((it) => `
+    <tr>
+      <td class="qty">${it.quantity}×</td>
+      <td class="name">${escapeHtml(it.name)}</td>
+      <td class="amt">$${fmt(it.subtotal)}</td>
+    </tr>
+    <tr class="unit-row"><td></td><td colspan="2">@ $${fmt(it.unitPrice)} each</td></tr>
+  `).join('');
+
+  const tableInfo = r.tableNumber ? ` • TABLE ${r.tableNumber}` : '';
+  const discount = num(r.discountAmount);
+  const change = num(r.change);
+
+  return `<!DOCTYPE html>
+<html><head>
+<meta charset="UTF-8">
+<title>Receipt ${escapeHtml(r.orderNumber)}</title>
+<style>
+  @page { size: 80mm auto; margin: 0; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 80mm; background: white; color: black; }
+  body {
+    font-family: 'Courier New', 'Consolas', monospace;
+    font-size: 12px;
+    line-height: 1.35;
+    padding: 4mm;
+  }
+  .center { text-align: center; }
+  .right  { text-align: right; }
+  .bold   { font-weight: 700; }
+  .big    { font-size: 16px; font-weight: 800; letter-spacing: 0.5px; }
+  .xs     { font-size: 10px; }
+  .row    { display: flex; justify-content: space-between; gap: 6px; }
+  .hr     { border: 0; border-top: 1px dashed #000; margin: 6px 0; }
+  .double { border: 0; border-top: 2px solid #000; margin: 6px 0; }
+  table   { width: 100%; border-collapse: collapse; }
+  td      { vertical-align: top; padding: 1px 0; }
+  td.qty  { width: 10mm; font-weight: 700; }
+  td.amt  { white-space: nowrap; text-align: right; font-weight: 700; }
+  td.name { word-break: break-word; }
+  tr.unit-row td { font-size: 10px; color: #333; padding-bottom: 3px; }
+  .total-row { font-size: 15px; font-weight: 800; }
+  .pay { border: 1px solid #000; padding: 4px 6px; margin-top: 6px; text-align: center; font-weight: 700; }
+  .footer { margin-top: 6mm; text-align: center; font-size: 10px; line-height: 1.4; }
+</style>
+</head><body>
+  <div class="center">
+    <div class="big">${escapeHtml(r.restaurant.name)}</div>
+    <div class="xs">${escapeHtml(r.restaurant.address)}</div>
+    <div class="xs">Tel: ${escapeHtml(r.restaurant.phone)}</div>
+    ${r.restaurant.vatNumber ? `<div class="xs">${escapeHtml(r.restaurant.vatNumber)}</div>` : ''}
+  </div>
+
+  <hr class="hr">
+
+  <div class="row"><span>Receipt #</span><span class="bold">${escapeHtml(r.orderNumber)}</span></div>
+  <div class="row"><span>Date</span><span>${dateStr} ${timeStr}</span></div>
+  <div class="row"><span>Order</span><span class="bold">${orderTypeLabel(r.orderType)}${tableInfo}</span></div>
+  ${r.cashierName ? `<div class="row"><span>Cashier</span><span>${escapeHtml(r.cashierName)}</span></div>` : ''}
+
+  <hr class="hr">
+
+  <table>${itemsHtml}</table>
+
+  <hr class="hr">
+
+  <div class="row"><span>Subtotal</span><span>$${fmt(r.subtotal)}</span></div>
+  ${discount > 0 ? `<div class="row"><span>Discount</span><span>-$${fmt(discount)}</span></div>` : ''}
+  <div class="row"><span>VAT (${(((r.restaurant.taxRate ?? 0.15) * 100) | 0)}%)</span><span>$${fmt(r.taxAmount)}</span></div>
+
+  <hr class="double">
+
+  <div class="row total-row"><span>TOTAL</span><span>$${fmt(r.totalAmount)}</span></div>
+
+  ${change > 0 ? `<div class="row" style="margin-top:4px"><span>Change</span><span class="bold">$${fmt(change)}</span></div>` : ''}
+
+  <div class="pay">
+    ${(r.paymentStatus || '').toLowerCase() === 'paid' ? '✓ PAID' : 'PAYMENT PENDING'}<br>
+    ${paymentLabel(r.paymentMethod)}
+    ${r.paymentReference ? `<div class="xs" style="font-weight:400;margin-top:2px">Ref: ${escapeHtml(r.paymentReference)}</div>` : ''}
+  </div>
+
+  ${r.notes ? `<div class="xs" style="margin-top:6px;border:1px dashed #000;padding:4px">${escapeHtml(r.notes)}</div>` : ''}
+
+  <div class="footer">
+    <div class="bold">Thank you — please come again!</div>
+    <div>Tinokutendai &mdash; dzokaizve!</div>
+    <div>Siyabonga &mdash; buyani futhi!</div>
+    <div class="xs" style="margin-top:6mm">ZIMRA-compliant fiscal receipt</div>
+  </div>
+</body></html>`;
+};
+
+// ----------------------------------------------------------------------------
+// Print API
+// ----------------------------------------------------------------------------
+
+export interface PrintResult {
+  ok: boolean;
+  error?: string;
+  /** True when the system print dialog was shown (browser fallback). */
+  fallback?: boolean;
 }
 
-export function whatsAppShareUrl(receiptUrl: string, orderNumber: string, total: string): string {
+/**
+ * Print a receipt. Auto-detects the right method:
+ *  - Desktop with a saved printer → silent print to that printer
+ *  - Desktop without a saved printer → opens the OS print dialog (so the
+ *    cashier can pick the POS-80 once; we save it for next time)
+ *  - Browser → opens a new tab with the receipt HTML and triggers print()
+ */
+export const printReceipt = async (payload: ReceiptPayload): Promise<PrintResult> => {
+  const html = renderThermalReceipt(payload);
+
+  if (isDesktop()) {
+    const deviceName = getSavedPrinter() || (await autoDetectPrinter());
+    if (deviceName && getSavedPrinter() !== deviceName) {
+      // Persist the auto-detected printer so the next print is silent.
+      setSavedPrinter(deviceName);
+    }
+    const result = await window.diamond!.printers.print(html, { deviceName, copies: 1 });
+    return result.ok ? { ok: true } : { ok: false, error: result.error };
+  }
+
+  // Browser fallback: open new tab, auto-trigger print, close after.
+  return printViaSystemDialog(html);
+};
+
+/**
+ * Test print to verify a printer is configured correctly. Sends a small
+ * "test page" through the same pipeline as a real receipt.
+ */
+export const testPrint = async (deviceName: string, restaurantName = 'Diamond Chicken'): Promise<PrintResult> => {
+  const html = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><style>
+  @page { size: 80mm auto; margin: 0; }
+  body { width: 80mm; padding: 4mm; font-family: 'Courier New', monospace; font-size: 12px; line-height: 1.4; text-align: center; }
+  .big { font-size: 18px; font-weight: 800; }
+  .hr { border: 0; border-top: 1px dashed #000; margin: 6px 0; }
+</style></head><body>
+  <div class="big">${escapeHtml(restaurantName)}</div>
+  <div>PRINTER TEST</div>
+  <hr class="hr">
+  <div>If you can read this, your</div>
+  <div>POS-80 thermal printer is</div>
+  <div><b>working correctly.</b></div>
+  <hr class="hr">
+  <div>${new Date().toLocaleString('en-GB', { timeZone: 'Africa/Harare' })}</div>
+  <div style="margin-top:8mm">— END OF TEST —</div>
+</body></html>`;
+
+  if (isDesktop()) {
+    const result = await window.diamond!.printers.print(html, { deviceName, copies: 1 });
+    return result.ok ? { ok: true } : { ok: false, error: result.error };
+  }
+  return printViaSystemDialog(html);
+};
+
+/**
+ * Browser fallback: opens an invisible iframe with the HTML and triggers
+ * window.print(). The cashier picks the POS-80 in the OS print dialog.
+ */
+const printViaSystemDialog = async (html: string): Promise<PrintResult> => {
+  return new Promise((resolve) => {
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+
+    iframe.onload = () => {
+      try {
+        const win = iframe.contentWindow;
+        if (!win) {
+          resolve({ ok: false, error: 'Could not access print frame' });
+          return;
+        }
+        win.focus();
+        win.print();
+        // Give the OS a moment, then clean up.
+        setTimeout(() => {
+          try { document.body.removeChild(iframe); } catch { /* noop */ }
+          resolve({ ok: true, fallback: true });
+        }, 1000);
+      } catch (err: any) {
+        resolve({ ok: false, error: err?.message || 'Print failed' });
+      }
+    };
+
+    document.body.appendChild(iframe);
+    iframe.srcdoc = html;
+  });
+};
+
+/**
+ * Open a receipt URL in a new tab/window with `?print=1` so it triggers
+ * print() automatically (used by the WhatsApp share + manual print buttons).
+ */
+export const openPrintDialog = (url: string): void => {
+  const sep = url.includes('?') ? '&' : '?';
+  window.open(`${url}${sep}print=1`, '_blank', 'noopener');
+};
+
+// ----------------------------------------------------------------------------
+// WhatsApp share helper (unchanged)
+// ----------------------------------------------------------------------------
+export const whatsAppShareUrl = (
+  receiptUrl: string,
+  orderNumber: string,
+  total: string,
+): string => {
   const message = `Your Diamond Chicken receipt ${orderNumber} — Total: $${total}\n${receiptUrl}`;
   return `https://wa.me/?text=${encodeURIComponent(message)}`;
-}
+};

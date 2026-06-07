@@ -2,7 +2,7 @@
 ; Builds a single-file .exe installer that installs the packaged Electron app.
 
 !define APP_NAME       "Diamond Chicken POS"
-!define APP_VERSION    "1.0.0"
+!define APP_VERSION    "1.1.0"
 !define APP_PUBLISHER  "Diamond Chicken"
 !define APP_EXE        "Diamond Chicken POS.exe"
 !define APP_REGKEY     "Software\Microsoft\Windows\CurrentVersion\Uninstall\DiamondChickenPOS"

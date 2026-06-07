@@ -167,6 +167,76 @@ function buildMenu() {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
+// ---------------------------------------------------------------------------
+// Printer IPC handlers
+// ---------------------------------------------------------------------------
+// The renderer (React app) sends HTML over IPC; we render it in a hidden
+// BrowserWindow then call webContents.print(...) which goes through the
+// Windows print spooler. This works with ANY installed Windows printer
+// (POS-80 thermal, laser, inkjet) without needing Web Serial / WebUSB.
+
+ipcMain.handle('printers:list', async () => {
+  try {
+    if (!mainWindow) return [];
+    const printers = await mainWindow.webContents.getPrintersAsync();
+    return printers.map((p) => ({
+      name: p.name,
+      displayName: p.displayName || p.name,
+      description: p.description || '',
+      status: p.status,
+      isDefault: !!p.isDefault,
+    }));
+  } catch (err) {
+    console.error('printers:list failed:', err);
+    return [];
+  }
+});
+
+ipcMain.handle('printers:print', async (_evt, { html, opts }) => {
+  const options = opts || {};
+  const deviceName = options.deviceName || '';
+  // 80mm thermal paper by default (80 000 microns wide). The receipt page
+  // sets its own min-content height so Electron auto-trims the long paper.
+  const widthMicrons = options.widthMicrons || 80000;
+  const heightMicrons = options.heightMicrons || 297000; // tall enough for any receipt
+
+  // Create a hidden window dedicated to rendering this single receipt.
+  const printWin = new BrowserWindow({
+    show: false,
+    webPreferences: { sandbox: true, javascript: false },
+  });
+
+  try {
+    // Load the HTML as a data URL (no disk I/O, no temp files).
+    const dataUrl = 'data:text/html;charset=utf-8,' + encodeURIComponent(html);
+    await printWin.loadURL(dataUrl);
+
+    const result = await new Promise((resolve) => {
+      printWin.webContents.print(
+        {
+          silent: !!deviceName,             // silent only if we have a target printer
+          printBackground: true,
+          deviceName,
+          margins: { marginType: 'none' },
+          pageSize: { width: widthMicrons, height: heightMicrons },
+          color: false,
+          copies: options.copies || 1,
+        },
+        (success, failureReason) => {
+          if (success) resolve({ ok: true });
+          else resolve({ ok: false, error: failureReason || 'Print cancelled' });
+        }
+      );
+    });
+
+    return result;
+  } catch (err) {
+    return { ok: false, error: err && err.message ? err.message : String(err) };
+  } finally {
+    try { printWin.destroy(); } catch { /* noop */ }
+  }
+});
+
 app.on('ready', () => {
   // Persistent storage for cookies, localStorage etc. so users stay logged in.
   // (Electron does this by default — kept here as documentation.)

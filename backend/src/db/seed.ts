@@ -104,19 +104,19 @@ async function seed() {
         ('vat_number', 'VAT123456789'),
         ('tax_rate', '0.15'),
         ('currency', 'USD'),
-        ('address', '123 Main Street, Harare, Zimbabwe'),
+        ('address', 'Naiks Corner, Herbert Chitepo Street, Bulawayo'),
         ('phone', '+263 771 234 567')
       ON CONFLICT (key) DO NOTHING
     `;
 
     console.log('✅ Database seeded successfully');
     console.log('');
-    console.log('📋 Default credentials:');
-    console.log('   Admin: admin@diamondchicken.co.zw / Admin@1234');
-    console.log('   Manager: manager@diamondchicken.co.zw / Manager@1234');
-    console.log('   Cashier 1 PIN: 1234 (Tendai Moyo)');
-    console.log('   Kitchen  PIN: 9999 (Chef Blessing)');
-    console.log('   Cashier 2 PIN: 5678 (Rudo Chikwanda)');
+    console.log('📋 Admin login (change immediately after first sign-in):');
+    console.log(`   Email:    ${adminEmail}`);
+    console.log(`   Password: ${adminPassword}`);
+    console.log('');
+    console.log('   The admin can create all other staff (managers, cashiers, kitchen)');
+    console.log('   via the Users page once signed in.');
   } catch (error) {
     console.error('❌ Seeding failed:', error);
     throw error;

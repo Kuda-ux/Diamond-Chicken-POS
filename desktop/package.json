@@ -1,6 +1,6 @@
 {
   "name": "diamond-chicken-pos-desktop",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Diamond Chicken POS — Windows desktop app",
   "main": "main.js",
   "author": "Diamond Chicken",
@@ -8,8 +8,8 @@
   "private": true,
   "scripts": {
     "start": "electron .",
-    "package": "electron-packager . \"Diamond Chicken POS\" --platform=win32 --arch=x64 --out=release --overwrite --asar --app-version=1.0.0 --win32metadata.CompanyName=\"Diamond Chicken\" --win32metadata.FileDescription=\"Diamond Chicken POS\" --win32metadata.ProductName=\"Diamond Chicken POS\"",
-    "zip": "powershell -NoProfile -Command \"Compress-Archive -Path 'release/Diamond Chicken POS-win32-x64/*' -DestinationPath 'release/DiamondChickenPOS-1.0.0-portable.zip' -Force\"",
+    "package": "electron-packager . \"Diamond Chicken POS\" --platform=win32 --arch=x64 --out=release --overwrite --asar --app-version=1.1.0 --win32metadata.CompanyName=\"Diamond Chicken\" --win32metadata.FileDescription=\"Diamond Chicken POS\" --win32metadata.ProductName=\"Diamond Chicken POS\"",
+    "zip": "powershell -NoProfile -Command \"Compress-Archive -Path 'release/Diamond Chicken POS-win32-x64/*' -DestinationPath 'release/DiamondChickenPOS-1.1.0-portable.zip' -Force\"",
     "installer": "powershell -NoProfile -Command \"& 'C:/Program Files (x86)/NSIS/makensis.exe' /V2 installer.nsi\"",
     "build": "npm run package && npm run zip && npm run installer"
   },

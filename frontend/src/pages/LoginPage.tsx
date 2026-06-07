@@ -92,7 +92,7 @@ export default function LoginPage() {
         </div>
 
         <div className="relative z-10 text-xs text-text-muted mt-4 lg:mt-0">
-          © 2026 Diamond Chicken • Harare, Zimbabwe
+          © 2026 Diamond Chicken • Bulawayo, Zimbabwe
         </div>
       </div>
 
@@ -207,15 +207,6 @@ export default function LoginPage() {
                 ><Delete className="w-5 h-5" /></button>
               </div>
 
-              {/* PIN hints (helpful for staff) */}
-              <div className="pt-2 border-t border-border">
-                <p className="text-[10px] uppercase tracking-wider font-bold text-text-muted mb-2">Default PINs</p>
-                <div className="grid grid-cols-3 gap-2 text-xs">
-                  <HintChip role="Cashier" pin="1234" />
-                  <HintChip role="Cashier" pin="5678" />
-                  <HintChip role="Kitchen" pin="9999" />
-                </div>
-              </div>
             </div>
           )}
         </div>
@@ -259,11 +250,3 @@ function FeaturePill({ icon, title, subtitle }: { icon: React.ReactNode; title: 
   );
 }
 
-function HintChip({ role, pin }: { role: string; pin: string }) {
-  return (
-    <div className="bg-panel border border-border rounded-lg px-2 py-1.5">
-      <p className="text-[9px] uppercase text-text-muted tracking-wider font-semibold">{role}</p>
-      <p className="font-mono font-bold text-sm text-text-primary tabular-nums">{pin}</p>
-    </div>
-  );
-}
