@@ -175,10 +175,58 @@ function buildMenu() {
 // Windows print spooler. This works with ANY installed Windows printer
 // (POS-80 thermal, laser, inkjet) without needing Web Serial / WebUSB.
 
+// PowerShell fallback for enumerating Windows printers when Electron's
+// getPrintersAsync returns an empty list (this happens on some Windows builds
+// or when the print spooler service is slow to respond).
+function listPrintersViaPowerShell() {
+  return new Promise((resolve) => {
+    try {
+      const { exec } = require('child_process');
+      exec(
+        'powershell -NoProfile -Command "Get-Printer | Select-Object Name,DriverName,PrinterStatus | ConvertTo-Json -Compress"',
+        { timeout: 5000 },
+        (err, stdout) => {
+          if (err || !stdout) {
+            resolve([]);
+            return;
+          }
+          try {
+            let parsed = JSON.parse(stdout.trim());
+            if (!Array.isArray(parsed)) parsed = [parsed];
+            const list = parsed.map((p) => ({
+              name: p.Name,
+              displayName: p.Name,
+              description: p.DriverName || '',
+              status: 0,
+              isDefault: false,
+            }));
+            resolve(list);
+          } catch {
+            resolve([]);
+          }
+        }
+      );
+    } catch {
+      resolve([]);
+    }
+  });
+}
+
 ipcMain.handle('printers:list', async () => {
   try {
-    if (!mainWindow) return [];
-    const printers = await mainWindow.webContents.getPrintersAsync();
+    if (!mainWindow) return await listPrintersViaPowerShell();
+    let printers = [];
+    try {
+      printers = await mainWindow.webContents.getPrintersAsync();
+    } catch (e) {
+      console.error('getPrintersAsync threw:', e);
+    }
+    console.log(`[printers:list] Electron returned ${printers.length} printer(s)`);
+    if (!printers || printers.length === 0) {
+      const ps = await listPrintersViaPowerShell();
+      console.log(`[printers:list] PowerShell returned ${ps.length} printer(s)`);
+      return ps;
+    }
     return printers.map((p) => ({
       name: p.name,
       displayName: p.displayName || p.name,
@@ -195,26 +243,44 @@ ipcMain.handle('printers:list', async () => {
 ipcMain.handle('printers:print', async (_evt, { html, opts }) => {
   const options = opts || {};
   const deviceName = options.deviceName || '';
-  // 80mm thermal paper by default (80 000 microns wide). The receipt page
-  // sets its own min-content height so Electron auto-trims the long paper.
+  // 80mm thermal paper by default (80 000 microns wide). Use a modest default
+  // height; the CSS @page rule has `size: 80mm auto` so Electron auto-trims.
   const widthMicrons = options.widthMicrons || 80000;
-  const heightMicrons = options.heightMicrons || 297000; // tall enough for any receipt
+  const heightMicrons = options.heightMicrons || 200000;
+
+  console.log(`[printers:print] deviceName="${deviceName}" htmlLength=${(html || '').length}`);
 
   // Create a hidden window dedicated to rendering this single receipt.
+  // javascript stays enabled so layout/CSS computes correctly.
   const printWin = new BrowserWindow({
     show: false,
-    webPreferences: { sandbox: true, javascript: false },
+    webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false },
   });
 
   try {
-    // Load the HTML as a data URL (no disk I/O, no temp files).
-    const dataUrl = 'data:text/html;charset=utf-8,' + encodeURIComponent(html);
-    await printWin.loadURL(dataUrl);
+    // Use base64 data URL: avoids URI-encoding pitfalls with large HTML.
+    const dataUrl =
+      'data:text/html;charset=utf-8;base64,' +
+      Buffer.from(html, 'utf-8').toString('base64');
+
+    // Wait for the page to finish loading AND for layout to settle.
+    await new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error('Load timeout')), 10000);
+      printWin.webContents.once('did-finish-load', () => {
+        clearTimeout(timeout);
+        // Give the browser a tick to compute layout for @page CSS rules.
+        setTimeout(resolve, 200);
+      });
+      printWin.loadURL(dataUrl).catch((e) => {
+        clearTimeout(timeout);
+        reject(e);
+      });
+    });
 
     const result = await new Promise((resolve) => {
       printWin.webContents.print(
         {
-          silent: !!deviceName,             // silent only if we have a target printer
+          silent: !!deviceName,
           printBackground: true,
           deviceName,
           margins: { marginType: 'none' },
@@ -223,6 +289,7 @@ ipcMain.handle('printers:print', async (_evt, { html, opts }) => {
           copies: options.copies || 1,
         },
         (success, failureReason) => {
+          console.log(`[printers:print] success=${success} reason=${failureReason || ''}`);
           if (success) resolve({ ok: true });
           else resolve({ ok: false, error: failureReason || 'Print cancelled' });
         }
@@ -231,6 +298,7 @@ ipcMain.handle('printers:print', async (_evt, { html, opts }) => {
 
     return result;
   } catch (err) {
+    console.error('[printers:print] error:', err);
     return { ok: false, error: err && err.message ? err.message : String(err) };
   } finally {
     try { printWin.destroy(); } catch { /* noop */ }
