@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, shell, dialog, session } = require('electron');
+const { app, BrowserWindow, Menu, shell, dialog, session, ipcMain } = require('electron');
 const path = require('path');
 
 // Production POS URL (the deployed Vercel app — auto-updates when we ship features)
