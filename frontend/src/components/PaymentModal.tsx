@@ -198,15 +198,13 @@ export default function PaymentModal({ open, onClose, onSuccess }: PaymentModalP
             <div className="mb-4">
               <div className="flex items-center justify-between mb-2">
                 <p className="text-xs text-text-muted uppercase tracking-wider">Receipt</p>
-                {isDesktop() && (
-                  <button
-                    onClick={() => setPrinterPickerOpen(true)}
-                    className="flex items-center gap-1 text-[10px] text-text-muted hover:text-primary transition-colors"
-                  >
-                    <SettingsIcon className="w-3 h-3" />
-                    {savedPrinter ? savedPrinter : 'Choose printer'}
-                  </button>
-                )}
+                <button
+                  onClick={() => setPrinterPickerOpen(true)}
+                  className="flex items-center gap-1 text-[10px] text-text-muted hover:text-primary transition-colors"
+                >
+                  <SettingsIcon className="w-3 h-3" />
+                  {isDesktop() && savedPrinter ? savedPrinter : 'Printer settings'}
+                </button>
               </div>
               <div className="grid grid-cols-3 gap-2">
                 <ActionButton onClick={handleThermalPrint} Icon={Printer} label="Print" tint="primary" />
