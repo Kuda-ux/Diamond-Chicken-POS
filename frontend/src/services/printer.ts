@@ -81,6 +81,7 @@ export const autoDetectPrinter = async (): Promise<string> => {
     const s = n.toLowerCase();
     let r = 0;
     if (s.includes('pos-80') || s.includes('pos 80') || s.includes('pos80')) r += 100;
+    if (s.includes('xprinter')) r += 90;
     if (s.includes('pos')) r += 50;
     if (s.includes('thermal')) r += 30;
     if (s.includes('80mm') || s.includes('80 mm') || s.includes('80')) r += 10;

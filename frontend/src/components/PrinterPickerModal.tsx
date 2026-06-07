@@ -131,7 +131,7 @@ export default function PrinterPickerModal({ onClose, onSaved }: Props) {
                 {printers.map((p) => {
                   const active = p.name === selected;
                   const looksLikeThermal =
-                    /pos|thermal|80/i.test(p.name) || /pos|thermal|80/i.test(p.displayName);
+                    /pos|thermal|80|xprinter/i.test(p.name) || /pos|thermal|80|xprinter/i.test(p.displayName);
                   return (
                     <button
                       key={p.name}
