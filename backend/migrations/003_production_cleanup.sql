@@ -8,15 +8,12 @@
 --
 -- Safe to run multiple times (idempotent).
 
-BEGIN;
-
 -- 1. Deactivate demo users.
 --    Identified by the email or name we seeded with. Never touches accounts the
 --    real admin has created (those have different names / emails).
 UPDATE users
 SET is_active = false,
-    pin = NULL,         -- free up the PIN slot
-    pin_hash = NULL     -- in case schema changes later
+    pin = NULL         -- free up the PIN slot
 WHERE (
     email IN (
       'manager@diamondchicken.co.zw'
@@ -30,10 +27,6 @@ WHERE (
   )
   AND role <> 'admin';   -- never deactivate the admin
 
--- Some older deployments may not have a pin_hash column; guard the column update.
--- (pgSQL doesn't have IF COLUMN EXISTS in DML, so we just leave pin = NULL above
--- which is always present.)
-
 -- 2. Force restaurant settings to the live address (UPSERT).
 INSERT INTO settings (key, value)
 VALUES
@@ -44,5 +37,3 @@ VALUES
   ('tax_rate',        '0.15')
 ON CONFLICT (key) DO UPDATE
 SET value = EXCLUDED.value;
-
-COMMIT;
