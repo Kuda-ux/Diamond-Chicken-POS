@@ -42,11 +42,26 @@ export const authApi = {
 
 export const categoriesApi = {
   getAll: () => api.get('/categories'),
+  create: (payload: { name: string; sortOrder?: number }) =>
+    api.post('/categories', payload),
+  update: (id: string, payload: { name?: string; sortOrder?: number }) =>
+    api.put(`/categories/${id}`, payload),
+  remove: (id: string) => api.delete(`/categories/${id}`),
 };
 
 export const menuApi = {
   getAll: () => api.get('/menu'),
   getById: (id: string) => api.get(`/menu/${id}`),
+  create: (payload: {
+    categoryId: string; name: string; price: number;
+    description?: string; prepTimeMinutes?: number; sortOrder?: number;
+  }) => api.post('/menu', payload),
+  update: (id: string, payload: {
+    categoryId?: string; name?: string; price?: number;
+    description?: string; prepTimeMinutes?: number; sortOrder?: number;
+  }) => api.put(`/menu/${id}`, payload),
+  toggle: (id: string) => api.put(`/menu/${id}/toggle`),
+  remove: (id: string) => api.delete(`/menu/${id}`),
 };
 
 export const ordersApi = {

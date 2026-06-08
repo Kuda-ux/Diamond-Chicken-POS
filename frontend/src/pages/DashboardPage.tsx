@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   DollarSign, ShoppingBag, TrendingUp, Package, AlertTriangle,
-  LogOut, Boxes, Diamond, Activity, Flame, Users, Clock, Award, AlertCircle,
+  LogOut, Boxes, Diamond, Activity, Flame, Users, Clock, Award, AlertCircle, UtensilsCrossed,
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -116,6 +116,11 @@ export default function DashboardPage() {
                 <p className="text-text-muted mt-0.5 capitalize">{user?.role}</p>
               </div>
             </div>
+            {(user?.role === 'admin' || user?.role === 'manager') && (
+              <Link to="/menu" className="btn btn-ghost text-xs sm:text-sm">
+                <UtensilsCrossed className="w-4 h-4" /> <span className="hidden sm:inline">Menu</span>
+              </Link>
+            )}
             <Link to="/inventory" className="btn btn-ghost text-xs sm:text-sm">
               <Boxes className="w-4 h-4" /> <span className="hidden sm:inline">Inventory</span>
             </Link>
