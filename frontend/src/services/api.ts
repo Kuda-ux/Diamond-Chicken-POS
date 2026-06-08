@@ -86,6 +86,8 @@ export const receiptsApi = {
 export const statsApi = {
   dashboard: (params?: { range?: string; from?: string; to?: string }) =>
     api.get('/stats/dashboard', { params }),
+  dailyReport: (date?: string) =>
+    api.get('/stats/daily-report', { params: { date } }),
 };
 
 export const inventoryApi = {
@@ -126,6 +128,16 @@ export const ingredientsApi = {
     items: { ingredientId: string; quantity: number; unitCost?: number }[];
   }) => api.post('/ingredients/receipts', payload),
   deleteReceipt: (id: string) => api.delete(`/ingredients/receipts/${id}`),
+};
+
+export const wasteApi = {
+  list: (params?: { from?: string; to?: string; ingredientId?: string; limit?: number }) =>
+    api.get('/waste', { params }),
+  record: (payload: { ingredientId: string; quantity: number; reason?: string; recordedAt?: string }) =>
+    api.post('/waste', payload),
+  remove: (id: string) => api.delete(`/waste/${id}`),
+  dailySummary: (date?: string) =>
+    api.get('/waste/daily', { params: { date } }),
 };
 
 export const recipesApi = {

@@ -11,6 +11,7 @@ import shiftsRoutes from './shiftsRoutes';
 import usersRoutes from './usersRoutes';
 import ingredientsRoutes from './ingredientsRoutes';
 import recipesRoutes from './recipesRoutes';
+import wasteRoutes from './wasteRoutes';
 
 const router = Router();
 
@@ -26,5 +27,6 @@ router.use('/users', usersRoutes);
 router.use('/shifts', shiftsRoutes);
 router.use('/ingredients', ingredientsRoutes);
 router.use('/recipes', recipesRoutes);
+router.use('/waste', wasteRoutes);
 
 export default router;

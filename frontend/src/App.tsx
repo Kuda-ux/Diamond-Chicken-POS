@@ -7,6 +7,7 @@ import DashboardPage from './pages/DashboardPage';
 import InventoryPage from './pages/InventoryPage';
 import UsersPage from './pages/UsersPage';
 import MenuManagementPage from './pages/MenuManagementPage';
+import DailyReportPage from './pages/DailyReportPage';
 
 function App() {
   const { user, isAuthenticated } = useAuthStore();
@@ -32,6 +33,7 @@ function App() {
       <Route path="/users" element={<UsersPage />} />
       <Route path="/menu" element={<MenuManagementPage />} />
       <Route path="/inventory" element={<InventoryPage />} />
+      <Route path="/report" element={<DailyReportPage />} />
       <Route path="/dashboard" element={<DashboardPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

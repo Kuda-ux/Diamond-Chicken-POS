@@ -10,6 +10,7 @@ import { useAuthStore } from '../stores/authStore';
 import ReceiveStockModal from '../components/ReceiveStockModal';
 import IngredientsTab from '../components/IngredientsTab';
 import RecipesTab from '../components/RecipesTab';
+import WasteTab from '../components/WasteTab';
 
 interface InventoryRow {
   id: string;
@@ -36,7 +37,7 @@ interface ReceiptRow {
   receivedByName?: string;
 }
 
-type Tab = 'ingredients' | 'recipes' | 'stock' | 'receipts';
+type Tab = 'ingredients' | 'recipes' | 'waste' | 'stock' | 'receipts';
 
 export default function InventoryPage() {
   const queryClient = useQueryClient();
@@ -125,10 +126,11 @@ export default function InventoryPage() {
         {/* Tabs */}
         <div className="max-w-[1400px] mx-auto px-4 sm:px-6">
           <div className="flex gap-1 -mb-px overflow-x-auto">
-            <TabBtn active={tab === 'ingredients'} onClick={() => setTab('ingredients')}><Beaker className="w-4 h-4" /> Ingredients</TabBtn>
+            <TabBtn active={tab === 'ingredients'} onClick={() => setTab('ingredients')}><Beaker className="w-4 h-4" /> Stock</TabBtn>
             <TabBtn active={tab === 'recipes'} onClick={() => setTab('recipes')}><ChefHat className="w-4 h-4" /> Recipes</TabBtn>
-            <TabBtn active={tab === 'stock'} onClick={() => setTab('stock')}><Package className="w-4 h-4" /> Menu Stock</TabBtn>
+            <TabBtn active={tab === 'waste'} onClick={() => setTab('waste')}><Trash2 className="w-4 h-4" /> Waste</TabBtn>
             <TabBtn active={tab === 'receipts'} onClick={() => setTab('receipts')}><History className="w-4 h-4" /> Deliveries</TabBtn>
+            <TabBtn active={tab === 'stock'} onClick={() => setTab('stock')}><Package className="w-4 h-4" /> Per-Item</TabBtn>
           </div>
         </div>
       </header>
@@ -236,6 +238,8 @@ export default function InventoryPage() {
         {tab === 'ingredients' && <IngredientsTab isAdmin={isAdmin} />}
 
         {tab === 'recipes' && <RecipesTab />}
+
+        {tab === 'waste' && <WasteTab />}
 
         {tab === 'receipts' && <ReceiptsHistory isAdmin={isAdmin} />}
       </div>

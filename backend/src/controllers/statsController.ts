@@ -237,3 +237,100 @@ export async function getDashboardStats(req: AuthRequest, res: Response) {
     return errorResponse(res, 'Failed to fetch stats', 500);
   }
 }
+
+// GET /api/stats/daily-report?date=YYYY-MM-DD
+// Returns everything needed for a downloadable daily PDF report
+export async function getDailyReport(req: AuthRequest, res: Response) {
+  try {
+    const dateParam = String(req.query.date || new Date().toISOString().slice(0, 10));
+
+    // Convert date to UTC range for Harare timezone
+    const TZ_OFFSET_MIN = 120;
+    const [y, m, d] = dateParam.split('-').map(Number);
+    const from = new Date(Date.UTC(y, m - 1, d, 0, 0, 0) - TZ_OFFSET_MIN * 60 * 1000);
+    const to = new Date(Date.UTC(y, m - 1, d + 1, 0, 0, 0) - TZ_OFFSET_MIN * 60 * 1000);
+
+    // Sales summary
+    const [summary] = await sql`
+      SELECT
+        COUNT(*) FILTER (WHERE status != 'cancelled')::int AS "totalOrders",
+        COUNT(*) FILTER (WHERE status != 'cancelled' AND payment_status = 'paid')::int AS "paidOrders",
+        COALESCE(SUM(total_amount) FILTER (WHERE status != 'cancelled' AND payment_status = 'paid'), 0)::float AS "totalRevenue",
+        COALESCE(SUM(tax_amount) FILTER (WHERE status != 'cancelled' AND payment_status = 'paid'), 0)::float AS "totalTax",
+        COALESCE(SUM(discount_amount) FILTER (WHERE status != 'cancelled' AND payment_status = 'paid'), 0)::float AS "totalDiscount",
+        COALESCE(AVG(total_amount) FILTER (WHERE status != 'cancelled' AND payment_status = 'paid'), 0)::float AS "averageOrderValue"
+      FROM orders
+      WHERE created_at >= ${from} AND created_at < ${to}
+    `;
+
+    // Payment methods breakdown
+    const paymentMethods = await sql`
+      SELECT
+        COALESCE(payment_method, 'unpaid') AS method,
+        COUNT(*)::int AS count,
+        COALESCE(SUM(total_amount), 0)::float AS revenue
+      FROM orders
+      WHERE created_at >= ${from} AND created_at < ${to}
+        AND status != 'cancelled' AND payment_status = 'paid'
+      GROUP BY payment_method
+      ORDER BY revenue DESC
+    `;
+
+    // Products sold breakdown (all menu items sold that day)
+    const productsSold = await sql`
+      SELECT
+        m.name,
+        SUM(oi.quantity)::int AS "quantitySold",
+        COALESCE(SUM(oi.quantity * oi.unit_price), 0)::float AS revenue
+      FROM order_items oi
+      JOIN menu_items m ON oi.menu_item_id = m.id
+      JOIN orders o ON oi.order_id = o.id
+      WHERE o.created_at >= ${from} AND o.created_at < ${to}
+        AND o.status != 'cancelled' AND o.payment_status = 'paid'
+      GROUP BY m.id, m.name
+      ORDER BY "quantitySold" DESC
+    `;
+
+    // Current stock levels (ingredients)
+    const stockLevels = await sql`
+      SELECT
+        name,
+        unit,
+        quantity::float AS quantity,
+        low_stock_threshold::float AS "lowStockThreshold",
+        COALESCE(unit_cost, 0)::float AS "unitCost"
+      FROM ingredients
+      WHERE is_active = TRUE
+      ORDER BY name
+    `;
+
+    // Waste for the day
+    const waste = await sql`
+      SELECT
+        i.name AS "ingredientName",
+        i.unit,
+        SUM(w.quantity)::float AS "totalWasted",
+        COALESCE(i.unit_cost, 0)::float AS "unitCost",
+        (SUM(w.quantity) * COALESCE(i.unit_cost, 0))::float AS "wasteCost"
+      FROM waste_records w
+      JOIN ingredients i ON w.ingredient_id = i.id
+      WHERE w.recorded_at = ${dateParam}
+      GROUP BY i.id, i.name, i.unit, i.unit_cost
+      ORDER BY "wasteCost" DESC
+    `;
+
+    const totalWasteCost = waste.reduce((s: number, w: any) => s + (w.wasteCost || 0), 0);
+
+    return successResponse(res, {
+      date: dateParam,
+      summary,
+      paymentMethods,
+      productsSold,
+      stockLevels,
+      waste: { items: waste, totalCost: totalWasteCost },
+    });
+  } catch (error) {
+    console.error('Daily report error:', error);
+    return errorResponse(res, 'Failed to generate daily report', 500);
+  }
+}
