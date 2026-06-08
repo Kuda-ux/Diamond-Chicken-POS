@@ -90,7 +90,12 @@ async function startServer() {
   try {
     if (env.NODE_ENV === 'production') {
       console.log('Running migrations...');
-      await runMigrations();
+      try {
+        await runMigrations();
+      } catch (migrationError) {
+        console.error('⚠️ Migration failed (server will still start):', migrationError);
+        // Don't crash the server if migration fails - log and continue
+      }
     }
 
     await ensureKitchenPins();

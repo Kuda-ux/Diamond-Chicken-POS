@@ -11,8 +11,6 @@
 --
 -- Idempotent: safe to re-run.
 
-BEGIN;
-
 -- 1. Ingredients (raw materials with their own stock)
 CREATE TABLE IF NOT EXISTS ingredients (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -59,5 +57,3 @@ CREATE TABLE IF NOT EXISTS ingredient_receipts (
 
 CREATE INDEX IF NOT EXISTS idx_ingredient_receipts_date ON ingredient_receipts(received_at DESC);
 CREATE INDEX IF NOT EXISTS idx_ingredient_receipts_batch ON ingredient_receipts(batch_id);
-
-COMMIT;
