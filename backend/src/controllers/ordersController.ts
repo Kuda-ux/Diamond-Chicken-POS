@@ -96,8 +96,13 @@ export async function createOrder(req: AuthRequest, res: Response) {
 
     const taxRate = new Decimal(process.env.TAX_RATE || '0.15');
     const discountAmount = new Decimal(data.discountAmount || 0);
-    const taxAmount = subtotal.minus(discountAmount).times(taxRate);
-    const totalAmount = subtotal.minus(discountAmount).plus(taxAmount);
+    // Tax-inclusive pricing: menu price = final price customer pays
+    // totalAmount = subtotal (tax-inclusive) - discount
+    const totalAmount = subtotal.minus(discountAmount);
+    // Extract tax from tax-inclusive total: tax = total - (total / (1 + taxRate))
+    const taxAmount = totalAmount.minus(totalAmount.div(taxRate.plus(1)));
+    // Net subtotal (before tax) for accounting
+    const netSubtotal = totalAmount.minus(taxAmount);
 
     const orderNumber = await generateOrderNumber();
 
@@ -108,7 +113,7 @@ export async function createOrder(req: AuthRequest, res: Response) {
       )
       VALUES (
         ${orderNumber}, ${cashierId}, 'pending', ${data.orderType},
-        ${data.tableNumber || null}, ${subtotal.toString()}, ${taxAmount.toString()},
+        ${data.tableNumber || null}, ${netSubtotal.toString()}, ${taxAmount.toString()},
         ${discountAmount.toString()}, ${totalAmount.toString()}, ${data.notes || null}
       )
       RETURNING *
