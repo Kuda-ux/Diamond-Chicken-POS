@@ -78,27 +78,31 @@ export const useCartStore = create<CartState>((set, get) => ({
 
   getSubtotal: () => {
     const state = get();
-    return state.items.reduce((sum, item) => {
-      const price = new Decimal(item.price);
-      const itemTotal = price.times(item.quantity);
-      return sum + itemTotal.toNumber();
-    }, 0);
+    const total = new Decimal(state.getTotal());
+    const tax = new Decimal(state.getTax());
+    return total.minus(tax).toNumber();
   },
 
   getTax: () => {
     const state = get();
-    const subtotal = new Decimal(state.getSubtotal());
+    const total = new Decimal(state.items.reduce((sum, item) => {
+      const price = new Decimal(item.price);
+      const itemTotal = price.times(item.quantity);
+      return sum + itemTotal.toNumber();
+    }, 0));
     const discount = new Decimal(state.discountAmount);
-    const taxableAmount = subtotal.minus(discount);
+    const finalTotal = total.minus(discount);
+    // Tax-inclusive: extract tax from total
     const taxRate = new Decimal(0.15);
-    return taxableAmount.times(taxRate).toNumber();
+    return finalTotal.minus(finalTotal.div(taxRate.plus(1))).toNumber();
   },
 
   getTotal: () => {
     const state = get();
-    const subtotal = new Decimal(state.getSubtotal());
-    const discount = new Decimal(state.discountAmount);
-    const tax = new Decimal(state.getTax());
-    return subtotal.minus(discount).plus(tax).toNumber();
+    return state.items.reduce((sum, item) => {
+      const price = new Decimal(item.price);
+      const itemTotal = price.times(item.quantity);
+      return sum + itemTotal.toNumber();
+    }, 0) - state.discountAmount;
   },
 }));
