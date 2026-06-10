@@ -217,7 +217,7 @@ export const renderThermalReceipt = (r: ReceiptPayload): string => {
   td      { vertical-align: top; padding: 1px 0; }
   td.qty  { width: 10mm; font-weight: 700; }
   td.amt  { white-space: nowrap; text-align: right; font-weight: 700; }
-  td.name { word-break: break-word; }
+  td.name { word-break: break-all; font-weight: 700; }
   tr.unit-row td { font-size: 10px; color: #333; padding-bottom: 3px; }
   .total-row { font-size: 15px; font-weight: 800; }
   .pay { border: 1px solid #000; padding: 4px 6px; margin-top: 6px; text-align: center; font-weight: 700; }
@@ -246,7 +246,7 @@ export const renderThermalReceipt = (r: ReceiptPayload): string => {
 
   <div class="row"><span>Subtotal</span><span>$${fmt(r.subtotal)}</span></div>
   ${discount > 0 ? `<div class="row"><span>Discount</span><span>-$${fmt(discount)}</span></div>` : ''}
-  <div class="row"><span>VAT (${(((restaurant.taxRate ?? 0.15) * 100) | 0)}%)</span><span>$${fmt(r.taxAmount)}</span></div>
+  <div class="row"><span>VAT (included ${(((restaurant.taxRate ?? 0.15) * 100) | 0)}%)</span><span>$${fmt(r.taxAmount)}</span></div>
 
   <hr class="double">
 

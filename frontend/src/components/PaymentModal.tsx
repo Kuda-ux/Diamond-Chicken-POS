@@ -92,6 +92,19 @@ export default function PaymentModal({ open, onClose, onSuccess }: PaymentModalP
         change: method === 'cash' ? change : undefined,
         payment: paymentRes?.data.data,
       });
+
+      // Auto-print on desktop app
+      if (isDesktop()) {
+        setTimeout(async () => {
+          try {
+            const receiptRes = await receiptsApi.get(order.id);
+            const { receipt, restaurant } = receiptRes.data.data;
+            await printReceipt({ ...receipt, restaurant, change: method === 'cash' ? change : undefined });
+          } catch (e) {
+            console.error('Auto-print failed:', e);
+          }
+        }, 500);
+      }
     } catch (e: any) {
       setError(e.response?.data?.message || e.message || 'Payment failed');
     } finally { setLoading(false); }
