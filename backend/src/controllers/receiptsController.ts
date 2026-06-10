@@ -83,10 +83,10 @@ export async function getReceiptHtml(req: Request, res: Response) {
         return `
           <tr>
             <td style="padding:4px 0">
-              <div style="font-weight:600">${qty}× ${name}</div>
+              <div style="font-weight:700;word-break:break-all">${qty}× ${name}</div>
               <div style="font-size:12px;color:#666">@ $${price}</div>
             </td>
-            <td style="padding:4px 0;text-align:right;font-weight:600">$${sub}</td>
+            <td style="padding:4px 0;text-align:right;font-weight:700">$${sub}</td>
           </tr>`;
       })
       .join('');
@@ -156,7 +156,7 @@ export async function getReceiptHtml(req: Request, res: Response) {
     <div class="totals">
       <div class="tot-row"><span>Subtotal</span><span>$${parseFloat(data.subtotal).toFixed(2)}</span></div>
       ${parseFloat(data.discountAmount) > 0 ? `<div class="tot-row"><span>Discount</span><span>-$${parseFloat(data.discountAmount).toFixed(2)}</span></div>` : ''}
-      <div class="tot-row"><span>VAT (15%)</span><span>$${parseFloat(data.taxAmount).toFixed(2)}</span></div>
+      <div class="tot-row"><span>VAT (included 15%)</span><span>$${parseFloat(data.taxAmount).toFixed(2)}</span></div>
       <div class="tot-row tot-total"><span>TOTAL</span><span>$${parseFloat(data.totalAmount).toFixed(2)}</span></div>
     </div>
 
