@@ -90,10 +90,8 @@ export async function createMenuItem(req: AuthRequest, res: Response) {
                 is_available as "isAvailable", prep_time_minutes as "prepTimeMinutes", sort_order as "sortOrder"
     `;
 
-    await sql`
-      INSERT INTO inventory (menu_item_id, quantity, low_stock_threshold, unit)
-      VALUES (${result[0].id}, 0, 10, 'pieces')
-    `;
+    // Don't auto-create inventory record - only create if item needs inventory tracking
+    // Items using recipes don't need per-item inventory
 
     return successResponse(res, result[0], 'Menu item created', 201);
   } catch (error) {
