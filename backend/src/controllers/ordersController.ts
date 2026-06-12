@@ -48,6 +48,7 @@ export async function createOrder(req: AuthRequest, res: Response) {
       const menuItem = menuItems[0];
 
       if (!menuItem.is_available) {
+        console.error(`[createOrder] Item ${menuItem.name} (${item.menuItemId}) is not available (is_available=false)`);
         return errorResponse(res, `${menuItem.name} is not available`, 400);
       }
 
@@ -61,10 +62,11 @@ export async function createOrder(req: AuthRequest, res: Response) {
       `;
 
       if (recipe.length > 0) {
-        // Use recipe-based check
+        // Item has recipe → check ingredient stock, skip menu-item inventory
         for (const ing of recipe) {
           const needed = parseFloat(ing.qpu) * item.quantity;
           if (parseFloat(ing.stock) < needed) {
+            console.error(`[createOrder] Insufficient ingredient ${ing.name} for ${menuItem.name}: need ${needed}, have ${ing.stock}`);
             return errorResponse(
               res,
               `Insufficient ${ing.name} for ${menuItem.name} (need ${needed} ${ing.unit}, have ${ing.stock})`,
@@ -73,11 +75,13 @@ export async function createOrder(req: AuthRequest, res: Response) {
           }
         }
       } else {
-        // Backward compat: no recipe → use legacy menu-item inventory check
+        // No recipe → only check inventory if a record exists
+        // Items without inventory records are allowed (e.g., non-stock items)
         const inventory = await sql`
           SELECT quantity FROM inventory WHERE menu_item_id = ${item.menuItemId}
         `;
         if (inventory.length > 0 && inventory[0].quantity < item.quantity) {
+          console.error(`[createOrder] Insufficient inventory for ${menuItem.name}: need ${item.quantity}, have ${inventory[0].quantity}`);
           return errorResponse(res, `Insufficient stock for ${menuItem.name}`, 400);
         }
       }
