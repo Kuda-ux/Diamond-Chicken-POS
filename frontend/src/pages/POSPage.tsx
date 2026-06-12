@@ -11,8 +11,6 @@ import PaymentModal from '../components/PaymentModal';
 import ShiftCloseModal from '../components/ShiftCloseModal';
 import { getSocket, joinRoom } from '../services/socket';
 
-const LOW_STOCK_THRESHOLD = 10;
-
 const CATEGORY_EMOJI: Record<string, string> = {
   chicken: '🍗', burger: '🍔', sides: '🍟', drinks: '🥤',
   dessert: '🍰', salad: '🥗', rice: '🍛', pizza: '🍕',
@@ -98,27 +96,7 @@ export default function POSPage() {
     return matchesSearch && matchesCategory && item.isAvailable;
   });
 
-  const getStock = (item: any): number | null => {
-    // Items with recipes use ingredient stock, not menu item inventory
-    if (item.hasRecipe) return null;
-    const v = item.stockQuantity ?? item.stock_quantity;
-    return v === undefined || v === null ? null : Number(v);
-  };
-
   const handleAddToCart = (item: any) => {
-    const stock = getStock(item);
-    if (stock !== null && stock <= 0) {
-      setToast(`${item.name} is out of stock`);
-      setTimeout(() => setToast(null), 2500);
-      return;
-    }
-    const existing = cart.items.find((i) => i.menuItemId === item.id);
-    const nextQty = (existing?.quantity || 0) + 1;
-    if (stock !== null && nextQty > stock) {
-      setToast(`Only ${stock} of ${item.name} left`);
-      setTimeout(() => setToast(null), 2500);
-      return;
-    }
     cart.addItem({ menuItemId: item.id, name: item.name, price: item.price });
   };
 
@@ -316,36 +294,23 @@ export default function POSPage() {
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 sm:gap-4">
                 {filteredMenu?.map((item: any) => {
-                  const stock = getStock(item);
-                  const threshold = Number(item.lowStockThreshold ?? item.low_stock_threshold ?? LOW_STOCK_THRESHOLD);
-                  const outOfStock = stock !== null && stock <= 0;
-                  const lowStock = stock !== null && stock > 0 && stock <= threshold;
                   const inCart = cart.items.find((i) => i.menuItemId === item.id);
                   const emoji = emojiForItem(item.name, categoryNameById(item.categoryId));
                   return (
                     <button
                       key={item.id}
                       onClick={() => handleAddToCart(item)}
-                      disabled={outOfStock}
-                      className={`card card-interactive p-3 sm:p-4 text-left ${outOfStock ? 'opacity-40 grayscale cursor-not-allowed' : ''}`}
+                      className="card card-interactive p-3 sm:p-4 text-left"
                     >
                       <div className="flex items-start justify-between mb-2 sm:mb-3">
                         <div className="text-3xl sm:text-4xl">{emoji}</div>
-                        {outOfStock ? <span className="chip chip-danger">Out</span>
-                          : lowStock ? <span className="chip chip-warn">Low</span>
-                          : inCart ? <span className="chip chip-primary">×{inCart.quantity}</span>
-                          : null}
+                        {inCart ? <span className="chip chip-primary">×{inCart.quantity}</span> : null}
                       </div>
                       <h3 className="font-display font-semibold text-text-primary text-xs sm:text-sm leading-tight mb-1 line-clamp-2 min-h-[2.2rem]">
                         {item.name}
                       </h3>
                       <div className="flex items-end justify-between mt-2">
                         <p className="font-display text-lg sm:text-xl font-bold text-primary tabular-nums">${parseFloat(item.price).toFixed(2)}</p>
-                        {stock !== null && (
-                          <span className={`text-[10px] font-semibold uppercase tracking-wider ${
-                            outOfStock ? 'text-danger' : lowStock ? 'text-secondary' : 'text-text-muted'
-                          }`}>{stock} left</span>
-                        )}
                       </div>
                     </button>
                   );
