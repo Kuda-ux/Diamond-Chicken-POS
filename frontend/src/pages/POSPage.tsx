@@ -99,6 +99,8 @@ export default function POSPage() {
   });
 
   const getStock = (item: any): number | null => {
+    // Items with recipes use ingredient stock, not menu item inventory
+    if (item.hasRecipe) return null;
     const v = item.stockQuantity ?? item.stock_quantity;
     return v === undefined || v === null ? null : Number(v);
   };

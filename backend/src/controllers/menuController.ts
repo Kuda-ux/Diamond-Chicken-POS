@@ -17,7 +17,7 @@ const createMenuItemSchema = z.object({
 export async function getMenu(req: AuthRequest, res: Response) {
   try {
     const menu = await sql`
-      SELECT 
+      SELECT
         m.id,
         m.category_id as "categoryId",
         m.name,
@@ -28,7 +28,11 @@ export async function getMenu(req: AuthRequest, res: Response) {
         m.prep_time_minutes as "prepTimeMinutes",
         m.sort_order as "sortOrder",
         i.quantity as "stockQuantity",
-        i.low_stock_threshold as "lowStockThreshold"
+        i.low_stock_threshold as "lowStockThreshold",
+        COALESCE(
+          (SELECT COUNT(*) > 0 FROM recipes WHERE menu_item_id = m.id),
+          false
+        ) as "hasRecipe"
       FROM menu_items m
       LEFT JOIN inventory i ON m.id = i.menu_item_id
       ORDER BY m.category_id, m.sort_order ASC, m.name ASC
@@ -45,7 +49,7 @@ export async function getMenuItem(req: AuthRequest, res: Response) {
     const { id } = req.params;
 
     const items = await sql`
-      SELECT 
+      SELECT
         m.id,
         m.category_id as "categoryId",
         m.name,
@@ -55,7 +59,11 @@ export async function getMenuItem(req: AuthRequest, res: Response) {
         m.is_available as "isAvailable",
         m.prep_time_minutes as "prepTimeMinutes",
         m.sort_order as "sortOrder",
-        i.quantity as "stockQuantity"
+        i.quantity as "stockQuantity",
+        COALESCE(
+          (SELECT COUNT(*) > 0 FROM recipes WHERE menu_item_id = m.id),
+          false
+        ) as "hasRecipe"
       FROM menu_items m
       LEFT JOIN inventory i ON m.id = i.menu_item_id
       WHERE m.id = ${id}
