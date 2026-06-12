@@ -63,15 +63,19 @@ export async function createOrder(req: AuthRequest, res: Response) {
 
       if (recipe.length > 0) {
         // Item has recipe → check ingredient stock, skip menu-item inventory
+        // Skip check if ingredient stock is 0 (treat as not tracked)
         for (const ing of recipe) {
-          const needed = parseFloat(ing.qpu) * item.quantity;
-          if (parseFloat(ing.stock) < needed) {
-            console.error(`[createOrder] Insufficient ingredient ${ing.name} for ${menuItem.name}: need ${needed}, have ${ing.stock}`);
-            return errorResponse(
-              res,
-              `Insufficient ${ing.name} for ${menuItem.name} (need ${needed} ${ing.unit}, have ${ing.stock})`,
-              400
-            );
+          const stock = parseFloat(ing.stock);
+          if (stock > 0) {
+            const needed = parseFloat(ing.qpu) * item.quantity;
+            if (stock < needed) {
+              console.error(`[createOrder] Insufficient ingredient ${ing.name} for ${menuItem.name}: need ${needed}, have ${stock}`);
+              return errorResponse(
+                res,
+                `Insufficient ${ing.name} for ${menuItem.name} (need ${needed} ${ing.unit}, have ${stock})`,
+                400
+              );
+            }
           }
         }
       } else {
