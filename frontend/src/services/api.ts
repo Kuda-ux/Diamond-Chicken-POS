@@ -140,6 +140,16 @@ export const wasteApi = {
     api.get('/waste/daily', { params: { date } }),
 };
 
+export const reconciliationApi = {
+  get: (date?: string) => api.get('/reconciliation', { params: { date } }),
+  recordCount: (payload: {
+    date?: string;
+    items: { ingredientId: string; quantity: number }[];
+    notes?: string;
+  }) => api.post('/reconciliation/count', payload),
+  getCounts: (date?: string) => api.get('/reconciliation/counts', { params: { date } }),
+};
+
 export const recipesApi = {
   listOverview: () => api.get('/recipes'),
   get: (menuItemId: string) => api.get(`/recipes/${menuItemId}`),

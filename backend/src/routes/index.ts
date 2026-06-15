@@ -12,6 +12,7 @@ import usersRoutes from './usersRoutes';
 import ingredientsRoutes from './ingredientsRoutes';
 import recipesRoutes from './recipesRoutes';
 import wasteRoutes from './wasteRoutes';
+import reconciliationRoutes from './reconciliationRoutes';
 
 const router = Router();
 
@@ -28,5 +29,6 @@ router.use('/shifts', shiftsRoutes);
 router.use('/ingredients', ingredientsRoutes);
 router.use('/recipes', recipesRoutes);
 router.use('/waste', wasteRoutes);
+router.use('/reconciliation', reconciliationRoutes);
 
 export default router;

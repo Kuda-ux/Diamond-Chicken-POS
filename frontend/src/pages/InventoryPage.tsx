@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft, Search, Plus, Save, X, Package, AlertTriangle, CheckCircle2,
-  Boxes, Truck, History, Trash2, Calendar, Users, Beaker, ChefHat,
+  Boxes, Truck, History, Trash2, Calendar, Users, Beaker, ChefHat, ClipboardCheck,
 } from 'lucide-react';
 import { inventoryApi } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
@@ -11,6 +11,7 @@ import ReceiveStockModal from '../components/ReceiveStockModal';
 import IngredientsTab from '../components/IngredientsTab';
 import RecipesTab from '../components/RecipesTab';
 import WasteTab from '../components/WasteTab';
+import ReconciliationTab from '../components/ReconciliationTab';
 
 interface InventoryRow {
   id: string;
@@ -37,7 +38,7 @@ interface ReceiptRow {
   receivedByName?: string;
 }
 
-type Tab = 'ingredients' | 'recipes' | 'waste' | 'stock' | 'receipts';
+type Tab = 'ingredients' | 'recipes' | 'waste' | 'stock' | 'receipts' | 'reconciliation';
 
 export default function InventoryPage() {
   const queryClient = useQueryClient();
@@ -130,6 +131,7 @@ export default function InventoryPage() {
             <TabBtn active={tab === 'recipes'} onClick={() => setTab('recipes')}><ChefHat className="w-4 h-4" /> Recipes</TabBtn>
             <TabBtn active={tab === 'waste'} onClick={() => setTab('waste')}><Trash2 className="w-4 h-4" /> Waste</TabBtn>
             <TabBtn active={tab === 'receipts'} onClick={() => setTab('receipts')}><History className="w-4 h-4" /> Deliveries</TabBtn>
+            <TabBtn active={tab === 'reconciliation'} onClick={() => setTab('reconciliation')}><ClipboardCheck className="w-4 h-4" /> Reconciliation</TabBtn>
             <TabBtn active={tab === 'stock'} onClick={() => setTab('stock')}><Package className="w-4 h-4" /> Per-Item</TabBtn>
           </div>
         </div>
@@ -240,6 +242,8 @@ export default function InventoryPage() {
         {tab === 'recipes' && <RecipesTab />}
 
         {tab === 'waste' && <WasteTab />}
+
+        {tab === 'reconciliation' && <ReconciliationTab />}
 
         {tab === 'receipts' && <ReceiptsHistory isAdmin={isAdmin} />}
       </div>
