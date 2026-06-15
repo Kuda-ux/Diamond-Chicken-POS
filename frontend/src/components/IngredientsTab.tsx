@@ -14,6 +14,7 @@ interface Ingredient {
   lowStockThreshold: number;
   unitCost?: number;
   notes?: string;
+  department?: string;
 }
 
 export default function IngredientsTab({ isAdmin }: { isAdmin: boolean }) {
@@ -85,6 +86,7 @@ export default function IngredientsTab({ isAdmin }: { isAdmin: boolean }) {
             <thead className="bg-panel-2 text-text-muted text-[10px] uppercase tracking-wider font-bold">
               <tr>
                 <th className="text-left px-5 py-3">Ingredient</th>
+                <th className="text-left px-5 py-3 hidden lg:table-cell">Dept</th>
                 <th className="text-left px-5 py-3 hidden sm:table-cell">Unit</th>
                 <th className="text-left px-5 py-3 w-48">Stock</th>
                 <th className="text-right px-5 py-3 hidden md:table-cell">Threshold</th>
@@ -113,6 +115,9 @@ export default function IngredientsTab({ isAdmin }: { isAdmin: boolean }) {
                       <td className="px-5 py-4">
                         <p className="font-semibold text-text-primary">{row.name}</p>
                         {row.notes && <p className="text-xs text-text-muted truncate max-w-[200px]">{row.notes}</p>}
+                      </td>
+                      <td className="px-5 py-4 text-text-secondary text-xs hidden lg:table-cell">
+                        <span className="px-2 py-1 rounded-md bg-panel-2 font-medium">{row.department || 'Kitchen'}</span>
                       </td>
                       <td className="px-5 py-4 text-text-secondary text-sm hidden sm:table-cell">{row.unit}</td>
                       <td className="px-5 py-4">
@@ -186,6 +191,7 @@ function IngredientEditor({
   const isEdit = !!ingredient;
   const [name, setName] = useState(ingredient?.name || '');
   const [unit, setUnit] = useState(ingredient?.unit || 'pcs');
+  const [department, setDepartment] = useState(ingredient?.department || 'Kitchen');
   const [threshold, setThreshold] = useState(String(ingredient?.lowStockThreshold ?? 10));
   const [unitCost, setUnitCost] = useState(ingredient?.unitCost ? String(ingredient.unitCost) : '');
   const [addQty, setAddQty] = useState('');
@@ -199,6 +205,7 @@ function IngredientEditor({
         await ingredientsApi.update(ingredient!.id, {
           name: name.trim(),
           unit,
+          department,
           lowStockThreshold: parseFloat(threshold) || 0,
           unitCost: unitCost ? parseFloat(unitCost) : undefined,
           notes: notes || undefined,
@@ -211,6 +218,7 @@ function IngredientEditor({
         await ingredientsApi.create({
           name: name.trim(),
           unit,
+          department,
           quantity: parseFloat(addQty) || 0,
           lowStockThreshold: parseFloat(threshold) || 0,
           unitCost: unitCost ? parseFloat(unitCost) : undefined,
@@ -245,6 +253,15 @@ function IngredientEditor({
         <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
           <Field label="Name">
             <input value={name} onChange={(e) => setName(e.target.value)} className="input" placeholder="e.g. Chicken pieces, Cooking oil, Takeaway box" />
+          </Field>
+
+          <Field label="Department">
+            <select value={department} onChange={(e) => setDepartment(e.target.value)} className="input">
+              <option value="Kitchen">Kitchen</option>
+              <option value="Confect">Confect (Pies, Cakes)</option>
+              <option value="Bar">Bar</option>
+              <option value="Packaging">Packaging</option>
+            </select>
           </Field>
 
           <div className="grid grid-cols-2 gap-3">

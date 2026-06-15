@@ -14,6 +14,7 @@ import { getSocket, joinRoom } from '../services/socket';
 const CATEGORY_EMOJI: Record<string, string> = {
   chicken: '🍗', burger: '🍔', sides: '🍟', drinks: '🥤',
   dessert: '🍰', salad: '🥗', rice: '🍛', pizza: '🍕',
+  confect: '🥧', pie: '🥧', cake: '🎂', pastry: '🧁',
 };
 
 function emojiForItem(name: string, categoryName?: string): string {

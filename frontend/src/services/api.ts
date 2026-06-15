@@ -111,11 +111,11 @@ export const ingredientsApi = {
   list: () => api.get('/ingredients'),
   create: (payload: {
     name: string; unit?: string; quantity?: number;
-    lowStockThreshold?: number; unitCost?: number; notes?: string;
+    lowStockThreshold?: number; unitCost?: number; notes?: string; department?: string;
   }) => api.post('/ingredients', payload),
   update: (id: string, payload: {
     name?: string; unit?: string; lowStockThreshold?: number;
-    unitCost?: number; notes?: string;
+    unitCost?: number; notes?: string; department?: string;
   }) => api.patch(`/ingredients/${id}`, payload),
   remove: (id: string) => api.delete(`/ingredients/${id}`),
   restock: (id: string, payload: { quantity: number; mode?: 'add' | 'set'; lowStockThreshold?: number }) =>

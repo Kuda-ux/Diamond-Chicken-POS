@@ -7,6 +7,7 @@ interface ReconciliationItem {
   ingredientId: string;
   name: string;
   unit: string;
+  department: string;
   openingStock: number;
   purchases: number;
   sales: number;
@@ -22,6 +23,7 @@ interface Ingredient {
   name: string;
   unit: string;
   quantity: number;
+  department: string;
 }
 
 export default function ReconciliationTab() {
@@ -65,6 +67,15 @@ export default function ReconciliationTab() {
   const items = report?.items || [];
   const totalVariance = items.reduce((s, i) => s + (i.variance ?? 0), 0);
   const hasVariance = items.some((i) => i.variance !== null && Math.abs(i.variance) > 0.01);
+
+  // Group items by department
+  const departments = Array.from(new Set(items.map((i) => i.department || 'Kitchen')));
+  const grouped: Record<string, ReconciliationItem[]> = {};
+  for (const d of departments) {
+    grouped[d] = items.filter((i) => (i.department || 'Kitchen') === d);
+  }
+
+  const [filterDept, setFilterDept] = useState<string>('all');
 
   const startCounting = () => {
     setCounting(true);
@@ -152,22 +163,39 @@ export default function ReconciliationTab() {
         </div>
       )}
 
-      {/* Summary chips */}
+      {/* Summary chips + department filter */}
       {!isLoading && items.length > 0 && (
-        <div className="flex flex-wrap gap-3">
-          <div className="card px-4 py-2 flex items-center gap-2">
-            <span className="text-xs text-text-muted">Items</span>
-            <span className="font-display font-bold text-text-primary">{items.length}</span>
+        <div className="space-y-3">
+          <div className="flex flex-wrap gap-3">
+            <div className="card px-4 py-2 flex items-center gap-2">
+              <span className="text-xs text-text-muted">Items</span>
+              <span className="font-display font-bold text-text-primary">{items.length}</span>
+            </div>
+            <div className={`card px-4 py-2 flex items-center gap-2 ${hasVariance ? 'border-secondary' : 'border-success'}`}>
+              {hasVariance
+                ? <AlertTriangle className="w-4 h-4 text-secondary" />
+                : <CheckCircle2 className="w-4 h-4 text-success" />}
+              <span className="text-xs text-text-muted">Total Variance</span>
+              <span className={`font-display font-bold ${hasVariance ? 'text-secondary' : 'text-success'}`}>
+                {fmt(Math.round(totalVariance * 100) / 100)}
+              </span>
+            </div>
           </div>
-          <div className={`card px-4 py-2 flex items-center gap-2 ${hasVariance ? 'border-secondary' : 'border-success'}`}>
-            {hasVariance
-              ? <AlertTriangle className="w-4 h-4 text-secondary" />
-              : <CheckCircle2 className="w-4 h-4 text-success" />}
-            <span className="text-xs text-text-muted">Total Variance</span>
-            <span className={`font-display font-bold ${hasVariance ? 'text-secondary' : 'text-success'}`}>
-              {fmt(Math.round(totalVariance * 100) / 100)}
-            </span>
-          </div>
+          {departments.length > 1 && (
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => setFilterDept('all')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${filterDept === 'all' ? 'bg-primary text-background' : 'bg-panel-2 text-text-secondary hover:bg-panel-2/80'}`}
+              >All Departments</button>
+              {departments.map((d) => (
+                <button
+                  key={d}
+                  onClick={() => setFilterDept(d)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${filterDept === d ? 'bg-primary text-background' : 'bg-panel-2 text-text-secondary hover:bg-panel-2/80'}`}
+                >{d} ({grouped[d]?.length})</button>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -199,49 +227,70 @@ export default function ReconciliationTab() {
                 </tr>
               </thead>
               <tbody>
-                {items.map((item) => {
-                  const v = item.variance;
-                  const hasV = v !== null && Math.abs(v) > 0.01;
-                  const isShortage = v !== null && v > 0.01;
-                  const isSurplus = v !== null && v < -0.01;
+                {(filterDept === 'all' ? departments : [filterDept]).map((dept) => {
+                  const deptItems = grouped[dept] || [];
+                  if (deptItems.length === 0) return null;
+                  const deptVariance = deptItems.reduce((s, i) => s + (i.variance ?? 0), 0);
                   return (
-                    <tr key={item.ingredientId} className="border-b border-border/50 hover:bg-panel-2/50 transition-colors">
-                      <td className="px-4 py-3">
-                        <div className="font-medium text-text-primary">{item.name}</div>
-                        <div className="text-[10px] text-text-muted">{item.unit}</div>
-                      </td>
-                      <td className="px-3 py-3 text-right tabular-nums">{fmt(item.openingStock)}</td>
-                      <td className="px-3 py-3 text-right tabular-nums text-success font-medium">
-                        {item.purchases > 0 ? `+${fmt(item.purchases)}` : fmt(item.purchases)}
-                      </td>
-                      <td className="px-3 py-3 text-right tabular-nums text-danger font-medium">
-                        {item.sales > 0 ? `-${fmt(item.sales)}` : fmt(item.sales)}
-                      </td>
-                      <td className="px-3 py-3 text-right tabular-nums text-secondary font-medium">
-                        {item.wastage > 0 ? `-${fmt(item.wastage)}` : fmt(item.wastage)}
-                      </td>
-                      <td className="px-3 py-3 text-right tabular-nums font-bold text-text-primary">{fmt(item.theoreticalClosing)}</td>
-                      <td className="px-3 py-3 text-right tabular-nums font-bold text-text-primary">
-                        {item.actualClosing !== null ? fmt(item.actualClosing) : <span className="text-text-muted italic">No count</span>}
-                      </td>
-                      <td className="px-3 py-3 text-right">
-                        {v === null ? (
-                          <span className="text-text-muted">—</span>
-                        ) : !hasV ? (
-                          <span className="inline-flex items-center gap-1 text-success font-medium">
-                            <Minus className="w-3 h-3" /> 0
-                          </span>
-                        ) : isShortage ? (
-                          <span className="inline-flex items-center gap-1 text-danger font-bold">
-                            <ArrowDown className="w-3 h-3" /> {fmt(Math.abs(v))}
-                          </span>
-                        ) : isSurplus ? (
-                          <span className="inline-flex items-center gap-1 text-success font-bold">
-                            <ArrowUp className="w-3 h-3" /> {fmt(Math.abs(v))}
-                          </span>
-                        ) : null}
-                      </td>
-                    </tr>
+                    <>
+                      <tr key={`dept-${dept}`} className="bg-panel-2/70">
+                        <td colSpan={7} className="px-4 py-2 font-display font-bold text-text-primary text-xs uppercase tracking-wider">
+                          {dept}
+                        </td>
+                        <td className="px-3 py-2 text-right text-xs font-bold tabular-nums">
+                          {Math.abs(deptVariance) > 0.01 ? (
+                            <span className={deptVariance > 0 ? 'text-danger' : 'text-success'}>{fmt(Math.round(deptVariance * 100) / 100)}</span>
+                          ) : (
+                            <span className="text-success">0</span>
+                          )}
+                        </td>
+                      </tr>
+                      {deptItems.map((item) => {
+                        const v = item.variance;
+                        const hasV = v !== null && Math.abs(v) > 0.01;
+                        const isShortage = v !== null && v > 0.01;
+                        const isSurplus = v !== null && v < -0.01;
+                        return (
+                          <tr key={item.ingredientId} className="border-b border-border/50 hover:bg-panel-2/50 transition-colors">
+                            <td className="px-4 py-3">
+                              <div className="font-medium text-text-primary">{item.name}</div>
+                              <div className="text-[10px] text-text-muted">{item.unit}</div>
+                            </td>
+                            <td className="px-3 py-3 text-right tabular-nums">{fmt(item.openingStock)}</td>
+                            <td className="px-3 py-3 text-right tabular-nums text-success font-medium">
+                              {item.purchases > 0 ? `+${fmt(item.purchases)}` : fmt(item.purchases)}
+                            </td>
+                            <td className="px-3 py-3 text-right tabular-nums text-danger font-medium">
+                              {item.sales > 0 ? `-${fmt(item.sales)}` : fmt(item.sales)}
+                            </td>
+                            <td className="px-3 py-3 text-right tabular-nums text-secondary font-medium">
+                              {item.wastage > 0 ? `-${fmt(item.wastage)}` : fmt(item.wastage)}
+                            </td>
+                            <td className="px-3 py-3 text-right tabular-nums font-bold text-text-primary">{fmt(item.theoreticalClosing)}</td>
+                            <td className="px-3 py-3 text-right tabular-nums font-bold text-text-primary">
+                              {item.actualClosing !== null ? fmt(item.actualClosing) : <span className="text-text-muted italic">No count</span>}
+                            </td>
+                            <td className="px-3 py-3 text-right">
+                              {v === null ? (
+                                <span className="text-text-muted">—</span>
+                              ) : !hasV ? (
+                                <span className="inline-flex items-center gap-1 text-success font-medium">
+                                  <Minus className="w-3 h-3" /> 0
+                                </span>
+                              ) : isShortage ? (
+                                <span className="inline-flex items-center gap-1 text-danger font-bold">
+                                  <ArrowDown className="w-3 h-3" /> {fmt(Math.abs(v))}
+                                </span>
+                              ) : isSurplus ? (
+                                <span className="inline-flex items-center gap-1 text-success font-bold">
+                                  <ArrowUp className="w-3 h-3" /> {fmt(Math.abs(v))}
+                                </span>
+                              ) : null}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </>
                   );
                 })}
               </tbody>

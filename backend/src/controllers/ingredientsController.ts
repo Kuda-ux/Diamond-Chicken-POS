@@ -20,11 +20,12 @@ export async function listIngredients(_req: AuthRequest, res: Response) {
         low_stock_threshold::float AS "lowStockThreshold",
         unit_cost::float AS "unitCost",
         notes,
+        COALESCE(department, 'Kitchen') AS department,
         is_active AS "isActive",
         updated_at AS "updatedAt"
       FROM ingredients
       WHERE is_active = TRUE
-      ORDER BY name ASC
+      ORDER BY department, name ASC
     `;
     return successResponse(res, rows);
   } catch (error) {
@@ -40,18 +41,20 @@ const createSchema = z.object({
   lowStockThreshold: z.number().nonnegative().optional().default(10),
   unitCost: z.number().nonnegative().optional(),
   notes: z.string().max(1000).optional(),
+  department: z.string().max(60).optional().default('Kitchen'),
 });
 
 export async function createIngredient(req: AuthRequest, res: Response) {
   try {
     const data = createSchema.parse(req.body);
     const [row] = await sql`
-      INSERT INTO ingredients (name, unit, quantity, low_stock_threshold, unit_cost, notes)
-      VALUES (${data.name}, ${data.unit}, ${data.quantity}, ${data.lowStockThreshold}, ${data.unitCost ?? null}, ${data.notes || null})
-      ON CONFLICT (name) DO UPDATE SET is_active = TRUE
+      INSERT INTO ingredients (name, unit, quantity, low_stock_threshold, unit_cost, notes, department)
+      VALUES (${data.name}, ${data.unit}, ${data.quantity}, ${data.lowStockThreshold}, ${data.unitCost ?? null}, ${data.notes || null}, ${data.department || 'Kitchen'})
+      ON CONFLICT (name) DO UPDATE SET is_active = TRUE, department = COALESCE(EXCLUDED.department, ingredients.department)
       RETURNING id, name, unit, quantity::float AS quantity,
                 low_stock_threshold::float AS "lowStockThreshold",
-                unit_cost::float AS "unitCost", notes, is_active AS "isActive"
+                unit_cost::float AS "unitCost", notes,
+                COALESCE(department, 'Kitchen') AS department, is_active AS "isActive"
     `;
     return successResponse(res, row, 'Ingredient created', 201);
   } catch (error) {
@@ -69,6 +72,7 @@ const updateSchema = z.object({
   lowStockThreshold: z.number().nonnegative().optional(),
   unitCost: z.number().nonnegative().optional(),
   notes: z.string().max(1000).optional(),
+  department: z.string().max(60).optional(),
 });
 
 export async function updateIngredient(req: AuthRequest, res: Response) {
@@ -82,11 +86,13 @@ export async function updateIngredient(req: AuthRequest, res: Response) {
           low_stock_threshold = COALESCE(${data.lowStockThreshold ?? null}, low_stock_threshold),
           unit_cost = COALESCE(${data.unitCost ?? null}, unit_cost),
           notes = COALESCE(${data.notes ?? null}, notes),
+          department = COALESCE(${data.department ?? null}, department),
           updated_at = now()
       WHERE id = ${id} AND is_active = TRUE
       RETURNING id, name, unit, quantity::float AS quantity,
                 low_stock_threshold::float AS "lowStockThreshold",
-                unit_cost::float AS "unitCost", notes
+                unit_cost::float AS "unitCost", notes,
+                COALESCE(department, 'Kitchen') AS department
     `;
     if (!row) return errorResponse(res, 'Ingredient not found', 404);
     return successResponse(res, row, 'Ingredient updated');

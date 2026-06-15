@@ -22,10 +22,11 @@ export async function getReconciliation(req: AuthRequest, res: Response) {
 
     // Get all active ingredients
     const ingredients = await sql`
-      SELECT id, name, unit, quantity::float AS "currentStock"
+      SELECT id, name, unit, quantity::float AS "currentStock",
+             COALESCE(department, 'Kitchen') AS department
       FROM ingredients
       WHERE is_active = TRUE
-      ORDER BY name
+      ORDER BY department, name
     `;
 
     const results: any[] = [];
@@ -118,6 +119,7 @@ export async function getReconciliation(req: AuthRequest, res: Response) {
         ingredientId: ing.id,
         name: ing.name,
         unit: ing.unit,
+        department: ing.department,
         openingStock: Math.round(openingStock * 1000) / 1000,
         purchases: Math.round(purchases * 1000) / 1000,
         sales: Math.round(sales * 1000) / 1000,
