@@ -76,6 +76,29 @@ export default function ReconciliationTab() {
   }
 
   const [filterDept, setFilterDept] = useState<string>('all');
+  const [actuals, setActuals] = useState<Record<string, string>>({});
+  const [hasEdits, setHasEdits] = useState(false);
+
+  const saveActuals = useMutation({
+    mutationFn: async () => {
+      const entries = Object.entries(actuals)
+        .filter(([, v]) => v !== '' && !isNaN(parseFloat(v)));
+      if (entries.length === 0) throw new Error('No actuals entered');
+      const payload = entries.map(([ingredientId, qty]) => ({ ingredientId, quantity: parseFloat(qty) }));
+      return reconciliationApi.recordCount({ date, items: payload });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['reconciliation'] });
+      qc.invalidateQueries({ queryKey: ['ingredients'] });
+      setActuals({});
+      setHasEdits(false);
+    },
+  });
+
+  const updateActual = (ingredientId: string, value: string) => {
+    setActuals((prev) => ({ ...prev, [ingredientId]: value }));
+    setHasEdits(true);
+  };
 
   const startCounting = () => {
     setCounting(true);
@@ -111,9 +134,21 @@ export default function ReconciliationTab() {
               className="input pl-10 text-sm w-44"
             />
           </div>
-          {!counting && (
-            <button onClick={startCounting} className="btn btn-primary text-xs sm:text-sm">
-              <ClipboardCheck className="w-4 h-4" /> <span className="hidden sm:inline">Physical Count</span>
+          {hasEdits && (
+            <button
+              onClick={() => saveActuals.mutate()}
+              disabled={saveActuals.isPending}
+              className="btn btn-primary text-xs sm:text-sm"
+            >
+              <Save className="w-4 h-4" /> {saveActuals.isPending ? 'Saving...' : 'Save Actuals'}
+            </button>
+          )}
+          {saveActuals.isError && (
+            <span className="text-xs text-danger">{(saveActuals.error as Error).message}</span>
+          )}
+          {!counting && !hasEdits && (
+            <button onClick={startCounting} className="btn btn-ghost text-xs sm:text-sm">
+              <ClipboardCheck className="w-4 h-4" /> <span className="hidden sm:inline">Bulk Count</span>
             </button>
           )}
         </div>
@@ -206,9 +241,9 @@ export default function ReconciliationTab() {
         <div className="text-center py-12 text-text-muted">No ingredients found. Add ingredients first.</div>
       ) : (
         <div className="card overflow-hidden">
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto max-h-[70vh]">
             <table className="w-full text-sm">
-              <thead>
+              <thead className="sticky top-0 z-10">
                 <tr className="bg-panel-2 border-b border-border text-left">
                   <th className="px-4 py-3 font-semibold text-text-secondary">Ingredient</th>
                   <th className="px-3 py-3 font-semibold text-text-secondary text-right">Opening</th>
@@ -267,8 +302,16 @@ export default function ReconciliationTab() {
                               {item.wastage > 0 ? `-${fmt(item.wastage)}` : fmt(item.wastage)}
                             </td>
                             <td className="px-3 py-3 text-right tabular-nums font-bold text-text-primary">{fmt(item.theoreticalClosing)}</td>
-                            <td className="px-3 py-3 text-right tabular-nums font-bold text-text-primary">
-                              {item.actualClosing !== null ? fmt(item.actualClosing) : <span className="text-text-muted italic">No count</span>}
+                            <td className="px-3 py-3 text-right">
+                              <input
+                                type="number"
+                                step="any"
+                                min="0"
+                                className="w-20 px-2 py-1 text-right text-sm font-bold border border-border rounded-lg bg-panel focus:border-primary focus:ring-1 focus:ring-primary/30 outline-none tabular-nums"
+                                placeholder={item.actualClosing !== null ? fmt(item.actualClosing) : '—'}
+                                value={actuals[item.ingredientId] ?? ''}
+                                onChange={(e) => updateActual(item.ingredientId, e.target.value)}
+                              />
                             </td>
                             <td className="px-3 py-3 text-right">
                               {v === null ? (
