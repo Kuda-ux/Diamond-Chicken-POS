@@ -139,25 +139,38 @@ export async function restockIngredient(req: AuthRequest, res: Response) {
     const existing = await sql`SELECT quantity FROM ingredients WHERE id = ${id} AND is_active = TRUE`;
     if (existing.length === 0) return errorResponse(res, 'Ingredient not found', 404);
 
-    const current = parseFloat(existing[0].quantity);
-    const newQty = mode === 'set' ? quantity : current + quantity;
+    const current = parseFloat(String(existing[0].quantity));
+    const rawNewQty = mode === 'set' ? quantity : current + quantity;
+    const newQty = Math.max(0, rawNewQty);
 
-    const [row] = await sql`
-      UPDATE ingredients
-      SET quantity = GREATEST(0, ${newQty}),
-          low_stock_threshold = COALESCE(${lowStockThreshold ?? null}, low_stock_threshold),
-          updated_at = now()
-      WHERE id = ${id}
-      RETURNING id, name, quantity::float AS quantity,
-                low_stock_threshold::float AS "lowStockThreshold"
-    `;
-    return successResponse(res, row, 'Stock updated');
+    let rows;
+    if (lowStockThreshold !== undefined) {
+      rows = await sql`
+        UPDATE ingredients
+        SET quantity = ${newQty},
+            low_stock_threshold = ${lowStockThreshold},
+            updated_at = now()
+        WHERE id = ${id}
+        RETURNING id, name, quantity::float AS quantity,
+                  low_stock_threshold::float AS "lowStockThreshold"
+      `;
+    } else {
+      rows = await sql`
+        UPDATE ingredients
+        SET quantity = ${newQty},
+            updated_at = now()
+        WHERE id = ${id}
+        RETURNING id, name, quantity::float AS quantity,
+                  low_stock_threshold::float AS "lowStockThreshold"
+      `;
+    }
+    return successResponse(res, rows[0], 'Stock updated');
   } catch (error) {
     if (error instanceof z.ZodError) {
       return errorResponse(res, 'Validation error', 400, error.errors);
     }
     console.error('Restock ingredient error:', error);
-    return errorResponse(res, 'Failed to restock ingredient', 500);
+    return errorResponse(res, (error as Error).message || 'Failed to restock ingredient', 500);
   }
 }
 
