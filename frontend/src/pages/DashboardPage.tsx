@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   DollarSign, ShoppingBag, TrendingUp, Package, AlertTriangle,
-  LogOut, Boxes, Diamond, Activity, Flame, Users, Clock, Award, AlertCircle, UtensilsCrossed, FileText,
+  LogOut, Boxes, Diamond, Activity, Flame, Users, Clock, Award, AlertCircle, UtensilsCrossed, FileText, Calendar, ChevronRight,
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -40,18 +40,33 @@ const formatTime = (iso: string) => {
   return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
 };
 
-type Range = 'today' | 'yesterday' | 'week' | 'month';
-const RANGES: { key: Range; label: string }[] = [
+type Range = 'today' | 'yesterday' | 'week' | 'month' | 'custom';
+const RANGES: { key: Exclude<Range, 'custom'>; label: string }[] = [
   { key: 'today', label: 'Today' },
   { key: 'yesterday', label: 'Yesterday' },
   { key: 'week', label: 'This Week' },
   { key: 'month', label: 'This Month' },
 ];
 
+// Convert a YYYY-MM-DD string to a UTC ISO string representing that day
+// boundary in Harare time (UTC+2). startOfDay=true → 00:00 local, false → 24:00 (next day midnight).
+const harareDay = (dateStr: string, startOfDay: boolean): string => {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const OFFSET_MIN = 120; // Harare is UTC+02:00, no DST
+  const dayOffset = startOfDay ? 0 : 1;
+  return new Date(Date.UTC(y, m - 1, d + dayOffset, 0, 0, 0) - OFFSET_MIN * 60 * 1000).toISOString();
+};
+
+const fmtDateLabel = (s: string) =>
+  new Date(s).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Africa/Harare' });
+
 export default function DashboardPage() {
   const { user, logout } = useAuthStore();
   const queryClient = useQueryClient();
   const [range, setRange] = useState<Range>('today');
+  const [customFrom, setCustomFrom] = useState('');
+  const [customTo, setCustomTo] = useState('');
+  const [appliedCustom, setAppliedCustom] = useState<{ from: string; to: string } | null>(null);
 
   useEffect(() => {
     const socket = getSocket();
@@ -62,10 +77,16 @@ export default function DashboardPage() {
     return () => { socket.off('order:new', refresh); socket.off('order:updated', refresh); };
   }, [queryClient]);
 
+  const queryParams =
+    range === 'custom' && appliedCustom
+      ? { range: 'custom', from: harareDay(appliedCustom.from, true), to: harareDay(appliedCustom.to, false) }
+      : { range };
+
   const { data, isLoading, isFetching } = useQuery({
-    queryKey: ['stats', range],
-    queryFn: async () => (await statsApi.dashboard({ range })).data.data,
-    refetchInterval: 15000,
+    queryKey: ['stats', range, appliedCustom?.from, appliedCustom?.to],
+    queryFn: async () => (await statsApi.dashboard(queryParams)).data.data,
+    refetchInterval: range === 'custom' ? false : 15000,
+    enabled: range !== 'custom' || !!appliedCustom,
   });
 
   const summary = data?.summary || {};
@@ -76,7 +97,11 @@ export default function DashboardPage() {
   const shifts: any[] = data?.shifts || [];
   const recentOrders: any[] = data?.recentOrders || [];
   const lowStock: any[] = data?.lowStock || [];
-  const rangeLabel = data?.range?.label || 'Today';
+  const rangeLabel =
+    range === 'custom' && appliedCustom
+      ? `${fmtDateLabel(appliedCustom.from)} – ${fmtDateLabel(appliedCustom.to)}`
+      : data?.range?.label || 'Today';
+  const today = new Date().toISOString().slice(0, 10);
 
   const hourlyPadded = Array.from({ length: 24 }, (_, h) => {
     const found = hourlyRevenue.find((r) => r.hour === h);
@@ -157,21 +182,75 @@ export default function DashboardPage() {
               </p>
             </div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            {RANGES.map((r) => (
+          <div className="space-y-3">
+            <div className="flex flex-wrap gap-2">
+              {RANGES.map((r) => (
+                <button
+                  key={r.key}
+                  onClick={() => setRange(r.key)}
+                  className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold border transition-colors ${
+                    range === r.key
+                      ? 'bg-primary text-background border-primary'
+                      : 'bg-panel-2 text-text-secondary border-border hover:border-primary/40'
+                  }`}
+                >
+                  {r.label}
+                </button>
+              ))}
               <button
-                key={r.key}
-                onClick={() => setRange(r.key)}
-                className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold border transition-colors ${
-                  range === r.key
+                onClick={() => setRange('custom')}
+                className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold border transition-colors flex items-center gap-1.5 ${
+                  range === 'custom'
                     ? 'bg-primary text-background border-primary'
                     : 'bg-panel-2 text-text-secondary border-border hover:border-primary/40'
                 }`}
               >
-                {r.label}
+                <Calendar className="w-3.5 h-3.5" /> Custom Range
               </button>
-            ))}
-            {isFetching && <span className="px-3 py-2 text-[10px] text-text-muted flex items-center gap-1.5"><span className="dot dot-live" /> Refreshing…</span>}
+              {isFetching && range !== 'custom' && <span className="px-3 py-2 text-[10px] text-text-muted flex items-center gap-1.5"><span className="dot dot-live" /> Refreshing…</span>}
+            </div>
+
+            {range === 'custom' && (
+              <div className="flex flex-wrap items-end gap-2 p-3 rounded-xl bg-panel-2 border border-border">
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] text-text-muted uppercase tracking-wider">From</label>
+                  <input
+                    type="date"
+                    value={customFrom}
+                    max={customTo || today}
+                    onChange={(e) => setCustomFrom(e.target.value)}
+                    className="input text-xs sm:text-sm px-3 py-2 w-36"
+                  />
+                </div>
+                <ChevronRight className="w-4 h-4 text-text-muted self-end mb-2" />
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] text-text-muted uppercase tracking-wider">To</label>
+                  <input
+                    type="date"
+                    value={customTo}
+                    min={customFrom || undefined}
+                    max={today}
+                    onChange={(e) => setCustomTo(e.target.value)}
+                    className="input text-xs sm:text-sm px-3 py-2 w-36"
+                  />
+                </div>
+                <button
+                  disabled={!customFrom || !customTo}
+                  onClick={() => {
+                    if (customFrom && customTo) setAppliedCustom({ from: customFrom, to: customTo });
+                  }}
+                  className="btn btn-primary text-xs sm:text-sm self-end disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Apply
+                </button>
+                {appliedCustom && isFetching && (
+                  <span className="text-[10px] text-text-muted flex items-center gap-1.5 self-end mb-2"><span className="dot dot-live" /> Loading…</span>
+                )}
+                {range === 'custom' && !appliedCustom && (
+                  <p className="w-full text-[11px] text-text-muted mt-1">Pick a start and end date, then press Apply.</p>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
