@@ -203,7 +203,7 @@ export const renderThermalReceipt = (r: ReceiptPayload): string => {
     font-family: 'Courier New', 'Consolas', monospace;
     font-size: 12px;
     line-height: 1.35;
-    padding: 4mm;
+    padding: 4mm 8mm 4mm 4mm;
   }
   .center { text-align: center; }
   .right  { text-align: right; }

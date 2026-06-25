@@ -251,8 +251,14 @@ ipcMain.handle('printers:print', async (_evt, { html, opts }) => {
   console.log(`[printers:print] deviceName="${deviceName}" htmlLength=${(html || '').length}`);
 
   // Create a hidden window dedicated to rendering this single receipt.
-  // javascript stays enabled so layout/CSS computes correctly.
+  // Width is set to match the paper (80mm ≈ 303px at 96dpi) so CSS mm units
+  // compute against the correct viewport — a default 800px window causes
+  // Chromium to interpret the layout at the wrong scale before print().
+  const mmToPx = (mm) => Math.round(mm * 96 / 25.4);
+  const paperMm = Math.round((widthMicrons || 80000) / 1000);
   const printWin = new BrowserWindow({
+    width: mmToPx(paperMm),
+    height: mmToPx(297),   // A4 height as safe max; @page auto trims
     show: false,
     webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false },
   });
