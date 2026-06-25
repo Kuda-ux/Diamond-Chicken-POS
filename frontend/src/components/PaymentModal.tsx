@@ -6,7 +6,7 @@ import {
 import { ordersApi, paymentsApi, receiptsApi } from '../services/api';
 import { useCartStore } from '../stores/cartStore';
 import {
-  isDesktop, getSavedPrinter, openPrintDialog, printReceipt, whatsAppShareUrl,
+  isDesktop, getSavedPrinter, openPrintDialog, printReceipt, printKitchenTicket, whatsAppShareUrl,
 } from '../services/printer';
 import PrinterPickerModal from './PrinterPickerModal';
 
@@ -75,6 +75,16 @@ export default function PaymentModal({ open, onClose, onSuccess }: PaymentModalP
         notes: cart.notes || undefined,
       });
       const order = orderRes.data.data;
+
+      // Print kitchen ticket immediately — fire-and-forget, never blocks payment flow
+      printKitchenTicket({
+        orderNumber: order.order_number || order.orderNumber,
+        orderType: cart.orderType,
+        tableNumber: cart.tableNumber || null,
+        notes: cart.notes || null,
+        items: cart.items.map((i) => ({ name: i.name, quantity: i.quantity })),
+        createdAt: new Date(),
+      }).catch(() => {/* silent */});
 
       let paymentRes;
       switch (method) {

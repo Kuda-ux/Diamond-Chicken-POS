@@ -278,6 +278,110 @@ export const renderThermalReceipt = (r: ReceiptPayload): string => {
 };
 
 // ----------------------------------------------------------------------------
+// Kitchen ticket — items only, no prices, large font for kitchen readability
+// ----------------------------------------------------------------------------
+
+export interface KitchenTicketPayload {
+  orderNumber: string;
+  orderType?: string;
+  tableNumber?: string | number | null;
+  notes?: string | null;
+  items: { name: string; quantity: number }[];
+  createdAt?: string | Date;
+}
+
+export const renderKitchenTicket = (t: KitchenTicketPayload): string => {
+  const created = new Date(t.createdAt || Date.now());
+  const timeStr = created.toLocaleTimeString('en-GB', {
+    hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Harare',
+  });
+  const dateStr = created.toLocaleDateString('en-GB', {
+    day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Africa/Harare',
+  });
+
+  const typeLabel = t.orderType === 'dine_in'
+    ? 'DINE-IN'
+    : t.orderType === 'delivery'
+    ? 'DELIVERY'
+    : 'TAKEAWAY';
+
+  const tableRow = t.tableNumber
+    ? `<div class="meta">TABLE <span class="tbl">${escapeHtml(String(t.tableNumber))}</span></div>`
+    : '';
+
+  const itemsHtml = (t.items || []).map((it) => `
+    <tr>
+      <td class="qty">${it.quantity}×</td>
+      <td class="name">${escapeHtml(it.name)}</td>
+    </tr>
+  `).join('');
+
+  return `<!DOCTYPE html>
+<html><head>
+<meta charset="UTF-8">
+<title>Kitchen ${escapeHtml(t.orderNumber)}</title>
+<style>
+  @page { size: 80mm auto; margin: 0; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 80mm; background: white; color: black; }
+  body {
+    font-family: 'Courier New', 'Consolas', monospace;
+    font-size: 13px;
+    line-height: 1.4;
+    padding: 4mm 4mm 8mm 4mm;
+  }
+  .center { text-align: center; }
+  .bold   { font-weight: 800; }
+  .hr     { border: 0; border-top: 1px dashed #000; margin: 5px 0; }
+  .double { border: 0; border-top: 3px solid #000; margin: 5px 0; }
+  .tag    { font-size: 11px; border: 1px solid #000; display: inline-block; padding: 1px 5px; letter-spacing: 1px; }
+  .order  { font-size: 28px; font-weight: 900; letter-spacing: 2px; }
+  .meta   { font-size: 13px; margin-top: 3px; }
+  .tbl    { font-size: 20px; font-weight: 900; }
+  table   { width: 100%; border-collapse: collapse; margin-top: 4px; }
+  td      { vertical-align: top; padding: 3px 0; }
+  td.qty  { width: 12mm; font-size: 18px; font-weight: 900; }
+  td.name { font-size: 16px; font-weight: 800; word-break: break-word; }
+  .notes  { margin-top: 6px; border: 2px dashed #000; padding: 4px 6px; font-size: 13px; font-weight: 700; }
+  .foot   { margin-top: 5mm; text-align: center; font-size: 11px; }
+</style>
+</head><body>
+  <div class="center">
+    <div class="tag">★ KITCHEN ORDER ★</div>
+    <div class="order">${escapeHtml(t.orderNumber)}</div>
+    <div class="meta bold">${typeLabel}</div>
+    ${tableRow}
+    <div class="meta">${dateStr} &nbsp; ${timeStr}</div>
+  </div>
+
+  <hr class="double">
+
+  <table>${itemsHtml}</table>
+
+  <hr class="double">
+
+  ${t.notes ? `<div class="notes">NOTE: ${escapeHtml(t.notes)}</div>` : ''}
+
+  <div class="foot">— END OF ORDER —</div>
+</body></html>`;
+};
+
+/**
+ * Print a kitchen ticket silently on desktop (same printer as customer receipt).
+ * On browser it is silently skipped — the kitchen display board handles that.
+ */
+export const printKitchenTicket = async (payload: KitchenTicketPayload): Promise<void> => {
+  if (!isDesktop()) return; // kitchen screen handles browser environment
+  const html = renderKitchenTicket(payload);
+  try {
+    const deviceName = getSavedPrinter() || (await autoDetectPrinter());
+    await window.diamond!.printers.print(html, { deviceName, copies: 1 });
+  } catch (err) {
+    console.error('[KitchenTicket] Print failed:', err);
+  }
+};
+
+// ----------------------------------------------------------------------------
 // Print API
 // ----------------------------------------------------------------------------
 
