@@ -224,7 +224,7 @@ export const renderThermalReceipt = (r: ReceiptPayload): string => {
   td.qty  { width: 10mm; font-weight: 700; }
   td.amt  { white-space: nowrap; text-align: right; font-weight: 700; }
   td.name { word-break: break-all; font-weight: 700; }
-  tr.unit-row td { font-size: 10px; color: #333; padding-bottom: 3px; }
+  tr.unit-row td { font-size: 11px; color: #000; padding-bottom: 3px; }
   .total-row { font-size: 15px; font-weight: 800; }
   .pay { border: 1px solid #000; padding: 4px 6px; margin-top: 6px; text-align: center; font-weight: 700; }
   .footer { margin-top: 6mm; text-align: center; font-size: 10px; line-height: 1.4; }
