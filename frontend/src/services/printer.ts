@@ -178,14 +178,20 @@ export const renderThermalReceipt = (r: ReceiptPayload): string => {
     hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Harare',
   });
 
-  const itemsHtml = items.map((it) => `
+  const itemsHtml = items.map((it) => {
+    // Backend returns items with name nested as menuItem.name;
+    // the ReceiptItem interface also allows a flat name field for direct use.
+    const itemAny = it as any;
+    const itemName = it?.name || itemAny?.menuItem?.name || 'Item';
+    return `
     <tr>
       <td class="qty">${num(it?.quantity)}×</td>
-      <td class="name">${escapeHtml(it?.name)}</td>
+      <td class="name">${escapeHtml(itemName)}</td>
       <td class="amt">$${fmt(it?.subtotal)}</td>
     </tr>
     <tr class="unit-row"><td></td><td colspan="2">@ $${fmt(it?.unitPrice)} each</td></tr>
-  `).join('');
+  `;
+  }).join('');
 
   const tableInfo = r.tableNumber ? ` • TABLE ${r.tableNumber}` : '';
   const discount = num(r.discountAmount);
