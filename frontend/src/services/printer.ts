@@ -506,6 +506,163 @@ export const openPrintDialog = (url: string): void => {
 };
 
 // ----------------------------------------------------------------------------
+// Daily sales-mix report — thermal 80mm printout for management
+// ----------------------------------------------------------------------------
+
+export interface DailySalesReportPayload {
+  date: string;
+  summary: {
+    totalRevenue?: number | string;
+    paidOrders?: number;
+    averageOrderValue?: number | string;
+    totalTax?: number | string;
+    unpaidOrders?: number;
+  };
+  paymentMethods: { method: string; count: number; revenue: number | string }[];
+  productsSold: { name: string; quantitySold: number; revenue: number | string }[];
+  waste?: { totalCost?: number | string };
+  restaurant: { name: string; address: string; phone: string };
+  generatedBy?: string;
+}
+
+const METHOD_ABBR: Record<string, string> = {
+  cash: 'CASH', ecocash: 'ECOCASH', innbucks: 'INNBUCKS',
+  zipit: 'ZIPIT', visa: 'VISA', mastercard: 'MASTERCARD', unpaid: 'UNPAID',
+};
+
+export const renderDailySalesReport = (r: DailySalesReportPayload): string => {
+  const restaurant = r.restaurant || ({} as DailySalesReportPayload['restaurant']);
+  const s = r.summary || {};
+  const payments = r.paymentMethods || [];
+  const products = r.productsSold || [];
+
+  const fmtDate = (() => {
+    const d = new Date(r.date + 'T12:00:00');
+    return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+  })();
+
+  const nowStr = new Date().toLocaleString('en-GB', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Harare',
+  });
+
+  const row = (label: string, value: string, bold = false) =>
+    `<div class="row${bold ? ' bold' : ''}"><span>${escapeHtml(label)}</span><span>${escapeHtml(value)}</span></div>`;
+
+  const payRows = payments.map((p) =>
+    row(`  ${METHOD_ABBR[p.method] || p.method.toUpperCase()} ×${p.count}`, `$${num(p.revenue).toFixed(2)}`)
+  ).join('');
+
+  const productRows = products.slice(0, 20).map((p) =>
+    `<div class="prow"><span class="pname">${escapeHtml(p.name)}</span><span class="pqty">×${p.quantitySold}</span><span class="prev">$${num(p.revenue).toFixed(2)}</span></div>`
+  ).join('');
+
+  const wasteCost = num(r.waste?.totalCost);
+
+  return `<!DOCTYPE html>
+<html><head>
+<meta charset="UTF-8">
+<title>Sales Report ${escapeHtml(r.date)}</title>
+<style>
+  @page { size: 80mm auto; margin: 0; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 80mm; background: white; color: black; }
+  body {
+    font-family: 'Courier New', 'Consolas', monospace;
+    font-size: 11px;
+    line-height: 1.4;
+    padding: 4mm 4mm 8mm 4mm;
+  }
+  .center { text-align: center; }
+  .bold   { font-weight: 800; }
+  .big    { font-size: 15px; font-weight: 900; }
+  .med    { font-size: 13px; font-weight: 800; }
+  .xs     { font-size: 9px; }
+  .hr     { border: 0; border-top: 1px dashed #000; margin: 4px 0; }
+  .double { border: 0; border-top: 2px solid #000; margin: 4px 0; }
+  .section { font-size: 10px; font-weight: 900; letter-spacing: 1px; text-transform: uppercase; margin: 5px 0 2px; }
+  .row    { display: flex; justify-content: space-between; gap: 4px; padding: 1px 0; }
+  .row.bold { font-weight: 800; font-size: 13px; }
+  .kpi    { display: flex; justify-content: space-between; gap: 4px; padding: 2px 0; }
+  .kpi-val { font-weight: 800; }
+  .prow   { display: flex; gap: 2px; padding: 1px 0; }
+  .pname  { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pqty   { width: 24px; text-align: right; font-weight: 700; }
+  .prev   { width: 38px; text-align: right; font-weight: 700; }
+  .foot   { margin-top: 6mm; text-align: center; font-size: 9px; line-height: 1.5; }
+</style>
+</head><body>
+
+  <div class="center">
+    <div class="big">${escapeHtml(restaurant.name || 'Diamond Chicken')}</div>
+    <div class="xs">${escapeHtml(restaurant.address)}</div>
+    <div style="margin-top:4px;font-size:12px;font-weight:800;">DAILY SALES REPORT</div>
+    <div class="med">${escapeHtml(fmtDate)}</div>
+  </div>
+
+  <hr class="double">
+
+  <div class="section">Sales Summary</div>
+  ${row('Revenue', `$${num(s.totalRevenue).toFixed(2)}`, true)}
+  ${row('Paid Orders', String(s.paidOrders || 0))}
+  ${s.unpaidOrders ? row('Unpaid Orders', String(s.unpaidOrders)) : ''}
+  ${row('Avg Order Value', `$${num(s.averageOrderValue).toFixed(2)}`)}
+  ${row('VAT Collected', `$${num(s.totalTax).toFixed(2)}`)}
+
+  ${payments.length > 0 ? `
+  <hr class="hr">
+  <div class="section">Payment Mix</div>
+  ${payRows}
+  ` : ''}
+
+  ${products.length > 0 ? `
+  <hr class="hr">
+  <div class="section">Products Sold</div>
+  <div class="prow xs bold"><span class="pname">Item</span><span class="pqty">Qty</span><span class="prev">Rev</span></div>
+  ${productRows}
+  ${row('  Total units', String(products.reduce((s, p) => s + p.quantitySold, 0)))}
+  ` : ''}
+
+  ${wasteCost > 0 ? `
+  <hr class="hr">
+  <div class="section">Waste</div>
+  ${row('Total waste cost', `$${wasteCost.toFixed(2)}`)}
+  ` : ''}
+
+  <hr class="double">
+
+  <div class="foot">
+    <div>Printed: ${escapeHtml(nowStr)}</div>
+    ${r.generatedBy ? `<div>By: ${escapeHtml(r.generatedBy)}</div>` : ''}
+    <div style="margin-top:4mm">— END OF REPORT —</div>
+  </div>
+
+</body></html>`;
+};
+
+/**
+ * Print the daily sales report to the thermal printer.
+ * Desktop: silent print to saved/auto-detected printer.
+ * Browser: opens the system print dialog (same fallback as receipts).
+ */
+export const printDailySalesReport = async (payload: DailySalesReportPayload): Promise<PrintResult> => {
+  const html = renderDailySalesReport(payload);
+
+  if (isDesktop()) {
+    try {
+      const deviceName = getSavedPrinter() || (await autoDetectPrinter());
+      const result = await window.diamond!.printers.print(html, { deviceName, copies: 1 });
+      if (result.ok) return { ok: true };
+      return printViaSystemDialog(html);
+    } catch {
+      return printViaSystemDialog(html);
+    }
+  }
+
+  return printViaSystemDialog(html);
+};
+
+// ----------------------------------------------------------------------------
 // WhatsApp share helper (unchanged)
 // ----------------------------------------------------------------------------
 export const whatsAppShareUrl = (

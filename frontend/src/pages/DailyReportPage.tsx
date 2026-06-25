@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { statsApi } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
+import { printDailySalesReport } from '../services/printer';
 
 const money = (v: number | string | undefined) =>
   `$${(typeof v === 'string' ? parseFloat(v) : (v || 0)).toFixed(2)}`;
@@ -21,6 +22,8 @@ export default function DailyReportPage() {
   const reportRef = useRef<HTMLDivElement>(null);
   const today = new Date().toISOString().slice(0, 10);
   const [date, setDate] = useState(today);
+  const [thermalStatus, setThermalStatus] = useState('');
+  const [thermalLoading, setThermalLoading] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ['daily-report', date],
@@ -32,6 +35,33 @@ export default function DailyReportPage() {
   const productsSold: any[] = data?.productsSold || [];
   const stockLevels: any[] = data?.stockLevels || [];
   const waste = data?.waste || { items: [], totalCost: 0 };
+
+  const handleThermalPrint = async () => {
+    if (!data) return;
+    setThermalLoading(true);
+    setThermalStatus('');
+    try {
+      const result = await printDailySalesReport({
+        date,
+        summary,
+        paymentMethods,
+        productsSold,
+        waste,
+        restaurant: {
+          name: 'Diamond Chicken',
+          address: 'Naiks Corner, Herbert Chitepo Street, Bulawayo',
+          phone: '+263 771 234 567',
+        },
+        generatedBy: user?.name,
+      });
+      setThermalStatus(result.ok ? (result.fallback ? 'Sent to print dialog ✓' : 'Printed ✓') : (result.error || 'Print failed'));
+    } catch (e: any) {
+      setThermalStatus(e?.message || 'Print failed');
+    } finally {
+      setThermalLoading(false);
+      setTimeout(() => setThermalStatus(''), 4000);
+    }
+  };
 
   const lowStockItems = stockLevels.filter((s: any) => s.quantity <= s.lowStockThreshold);
 
@@ -178,9 +208,18 @@ export default function DailyReportPage() {
               max={today}
               className="input text-sm"
             />
+            <button
+              onClick={handleThermalPrint}
+              disabled={isLoading || !data || thermalLoading}
+              className="btn btn-ghost text-xs sm:text-sm border-border"
+            >
+              <Printer className="w-4 h-4" />
+              <span className="hidden sm:inline">{thermalLoading ? 'Printing…' : 'Print Thermal'}</span>
+            </button>
             <button onClick={handlePrint} disabled={isLoading || !data} className="btn btn-primary text-xs sm:text-sm">
               <Download className="w-4 h-4" /> <span className="hidden sm:inline">Download PDF</span>
             </button>
+            {thermalStatus && <span className="text-xs text-text-secondary">{thermalStatus}</span>}
           </div>
         </div>
       </header>
