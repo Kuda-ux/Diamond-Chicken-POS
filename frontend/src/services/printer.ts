@@ -570,25 +570,23 @@ export const renderDailySalesReport = (r: DailySalesReportPayload): string => {
   body {
     font-family: 'Courier New', 'Consolas', monospace;
     font-size: 11px;
-    line-height: 1.4;
-    padding: 4mm 4mm 8mm 4mm;
+    line-height: 1.45;
+    padding: 4mm 8mm 8mm 4mm;
   }
   .center { text-align: center; }
   .bold   { font-weight: 800; }
-  .big    { font-size: 15px; font-weight: 900; }
-  .med    { font-size: 13px; font-weight: 800; }
+  .big    { font-size: 14px; font-weight: 900; }
+  .med    { font-size: 12px; font-weight: 800; }
   .xs     { font-size: 9px; }
   .hr     { border: 0; border-top: 1px dashed #000; margin: 4px 0; }
   .double { border: 0; border-top: 2px solid #000; margin: 4px 0; }
-  .section { font-size: 10px; font-weight: 900; letter-spacing: 1px; text-transform: uppercase; margin: 5px 0 2px; }
-  .row    { display: flex; justify-content: space-between; gap: 4px; padding: 1px 0; }
-  .row.bold { font-weight: 800; font-size: 13px; }
-  .kpi    { display: flex; justify-content: space-between; gap: 4px; padding: 2px 0; }
-  .kpi-val { font-weight: 800; }
-  .prow   { display: flex; gap: 2px; padding: 1px 0; }
+  .section { font-size: 9px; font-weight: 900; letter-spacing: 1px; text-transform: uppercase; margin: 5px 0 2px; }
+  .row    { display: flex; justify-content: space-between; gap: 4px; padding: 1px 0; font-size: 11px; }
+  .row.bold { font-weight: 800; font-size: 12px; }
+  .prow   { display: flex; align-items: baseline; gap: 3px; padding: 1px 0; font-size: 11px; }
   .pname  { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .pqty   { width: 24px; text-align: right; font-weight: 700; }
-  .prev   { width: 38px; text-align: right; font-weight: 700; }
+  .pqty   { width: 30px; text-align: right; font-weight: 700; flex-shrink: 0; }
+  .prev   { width: 52px; text-align: right; font-weight: 700; flex-shrink: 0; }
   .foot   { margin-top: 6mm; text-align: center; font-size: 9px; line-height: 1.5; }
 </style>
 </head><body>
