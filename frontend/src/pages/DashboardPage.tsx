@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   DollarSign, ShoppingBag, TrendingUp, Package, AlertTriangle,
-  LogOut, Boxes, Diamond, Activity, Flame, Users, Clock, Award, AlertCircle, UtensilsCrossed, FileText, Calendar, ChevronRight,
+  LogOut, Boxes, Diamond, Activity, Flame, Users, Clock, Award, AlertCircle, UtensilsCrossed, FileText, Calendar,
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -99,7 +99,9 @@ export default function DashboardPage() {
   const lowStock: any[] = data?.lowStock || [];
   const rangeLabel =
     range === 'custom' && appliedCustom
-      ? `${fmtDateLabel(appliedCustom.from)} – ${fmtDateLabel(appliedCustom.to)}`
+      ? appliedCustom.from === appliedCustom.to
+        ? fmtDateLabel(appliedCustom.from)
+        : `${fmtDateLabel(appliedCustom.from)} – ${fmtDateLabel(appliedCustom.to)}`
       : data?.range?.label || 'Today';
   const today = new Date().toISOString().slice(0, 10);
 
@@ -213,7 +215,7 @@ export default function DashboardPage() {
             {range === 'custom' && (
               <div className="flex flex-wrap items-end gap-2 p-3 rounded-xl bg-panel-2 border border-border">
                 <div className="flex flex-col gap-1">
-                  <label className="text-[10px] text-text-muted uppercase tracking-wider">From</label>
+                  <label className="text-[10px] text-text-muted uppercase tracking-wider">Date</label>
                   <input
                     type="date"
                     value={customFrom}
@@ -222,9 +224,8 @@ export default function DashboardPage() {
                     className="input text-xs sm:text-sm px-3 py-2 w-36"
                   />
                 </div>
-                <ChevronRight className="w-4 h-4 text-text-muted self-end mb-2" />
                 <div className="flex flex-col gap-1">
-                  <label className="text-[10px] text-text-muted uppercase tracking-wider">To</label>
+                  <label className="text-[10px] text-text-muted uppercase tracking-wider">End date <span className="normal-case text-text-muted">(optional)</span></label>
                   <input
                     type="date"
                     value={customTo}
@@ -235,9 +236,9 @@ export default function DashboardPage() {
                   />
                 </div>
                 <button
-                  disabled={!customFrom || !customTo}
+                  disabled={!customFrom}
                   onClick={() => {
-                    if (customFrom && customTo) setAppliedCustom({ from: customFrom, to: customTo });
+                    if (customFrom) setAppliedCustom({ from: customFrom, to: customTo || customFrom });
                   }}
                   className="btn btn-primary text-xs sm:text-sm self-end disabled:opacity-40 disabled:cursor-not-allowed"
                 >
@@ -247,7 +248,7 @@ export default function DashboardPage() {
                   <span className="text-[10px] text-text-muted flex items-center gap-1.5 self-end mb-2"><span className="dot dot-live" /> Loading…</span>
                 )}
                 {range === 'custom' && !appliedCustom && (
-                  <p className="w-full text-[11px] text-text-muted mt-1">Pick a start and end date, then press Apply.</p>
+                  <p className="w-full text-[11px] text-text-muted mt-1">Pick a single date, or add an end date for a range — then press Apply.</p>
                 )}
               </div>
             )}
