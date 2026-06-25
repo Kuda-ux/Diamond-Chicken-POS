@@ -1,15 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import {
   DollarSign, ShoppingBag, TrendingUp, Package, AlertTriangle,
-  LogOut, Boxes, Diamond, Activity, Flame, Users, Clock, Award, AlertCircle, UtensilsCrossed, FileText, Calendar,
+  LogOut, Boxes, Diamond, Activity, Flame, Users, Clock, Award, AlertCircle, UtensilsCrossed, FileText, Calendar, Trash2,
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell,
 } from 'recharts';
-import { statsApi } from '../services/api';
+import { statsApi, ordersApi } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 import { getSocket, joinRoom } from '../services/socket';
 
@@ -67,6 +67,21 @@ export default function DashboardPage() {
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
   const [appliedCustom, setAppliedCustom] = useState<{ from: string; to: string } | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  const canManageOrders = user?.role === 'admin' || user?.role === 'manager';
+
+  const deleteOrderMutation = useMutation({
+    mutationFn: (id: string) => ordersApi.delete(id),
+    onSuccess: () => {
+      setConfirmDeleteId(null);
+      queryClient.invalidateQueries({ queryKey: ['stats'] });
+    },
+  });
+
+  const handleDeleteClick = useCallback((id: string) => {
+    setConfirmDeleteId((prev) => (prev === id ? null : id));
+  }, []);
 
   useEffect(() => {
     const socket = getSocket();
@@ -484,24 +499,60 @@ export default function DashboardPage() {
               ) : (
                 recentOrders.map((o) => {
                   const st = STATUS_META[o.status] || { color: 'text-text-muted', label: o.status };
+                  const isConfirming = confirmDeleteId === o.id;
+                  const isDeleting = deleteOrderMutation.isPending && confirmDeleteId === o.id;
                   return (
-                    <div key={o.id} className="flex items-center gap-3 sm:gap-4 p-3 rounded-xl hover:bg-panel-2 transition-colors">
-                      <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl bg-primary/10 border border-primary/25 flex flex-col items-center justify-center text-primary flex-shrink-0">
-                        <span className="text-[9px] uppercase tracking-wider leading-none">{formatTime(o.createdAt)}</span>
-                        <span className="font-display font-bold text-sm mt-0.5">{o.itemCount}</span>
+                    <div key={o.id} className={`rounded-xl border transition-colors ${
+                      isConfirming ? 'border-danger/40 bg-danger/5' : 'border-transparent hover:bg-panel-2'
+                    }`}>
+                      <div className="flex items-center gap-3 sm:gap-4 p-3">
+                        <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl bg-primary/10 border border-primary/25 flex flex-col items-center justify-center text-primary flex-shrink-0">
+                          <span className="text-[9px] uppercase tracking-wider leading-none">{formatTime(o.createdAt)}</span>
+                          <span className="font-display font-bold text-sm mt-0.5">{o.itemCount}</span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-text-primary text-sm truncate">
+                            {o.orderNumber} <span className="text-text-muted font-normal">• {String(o.orderType).replace('_', '-')}</span>
+                          </p>
+                          <p className="text-xs text-text-muted truncate">
+                            {o.itemCount} item{o.itemCount !== 1 ? 's' : ''}{o.cashierName && ` • by ${o.cashierName}`}{o.paymentMethod && ` • ${o.paymentMethod}`}
+                          </p>
+                        </div>
+                        <div className="text-right flex-shrink-0">
+                          <p className="font-display font-bold text-sm sm:text-base text-text-primary tabular-nums">{money(o.totalAmount)}</p>
+                          <p className={`text-[10px] font-bold uppercase tracking-wider ${st.color}`}>{st.label}</p>
+                        </div>
+                        {canManageOrders && (
+                          <button
+                            onClick={() => handleDeleteClick(o.id)}
+                            className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
+                              isConfirming ? 'bg-danger text-white' : 'text-text-muted hover:text-danger hover:bg-danger/10'
+                            }`}
+                            title="Delete order"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-text-primary text-sm truncate">
-                          {o.orderNumber} <span className="text-text-muted font-normal">• {String(o.orderType).replace('_', '-')}</span>
-                        </p>
-                        <p className="text-xs text-text-muted truncate">
-                          {o.itemCount} item{o.itemCount !== 1 ? 's' : ''}{o.cashierName && ` • by ${o.cashierName}`}{o.paymentMethod && ` • ${o.paymentMethod}`}
-                        </p>
-                      </div>
-                      <div className="text-right flex-shrink-0">
-                        <p className="font-display font-bold text-sm sm:text-base text-text-primary tabular-nums">{money(o.totalAmount)}</p>
-                        <p className={`text-[10px] font-bold uppercase tracking-wider ${st.color}`}>{st.label}</p>
-                      </div>
+                      {isConfirming && (
+                        <div className="flex items-center gap-2 px-3 pb-3 pt-0">
+                          <span className="text-xs text-danger font-semibold flex-1">Delete order {o.orderNumber}? Stock will be restored.</span>
+                          <button
+                            onClick={() => deleteOrderMutation.mutate(o.id)}
+                            disabled={isDeleting}
+                            className="btn btn-danger text-xs py-1 px-3 disabled:opacity-50"
+                          >
+                            {isDeleting ? 'Deleting…' : 'Yes, delete'}
+                          </button>
+                          <button
+                            onClick={() => setConfirmDeleteId(null)}
+                            disabled={isDeleting}
+                            className="btn btn-ghost text-xs py-1 px-3"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      )}
                     </div>
                   );
                 })

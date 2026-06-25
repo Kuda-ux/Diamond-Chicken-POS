@@ -361,6 +361,57 @@ export async function cancelOrder(req: AuthRequest, res: Response) {
   }
 }
 
+export async function deleteOrder(req: AuthRequest, res: Response) {
+  try {
+    const { id } = req.params;
+
+    const orders = await sql`SELECT id, order_number FROM orders WHERE id = ${id}`;
+    if (orders.length === 0) {
+      return errorResponse(res, 'Order not found', 404);
+    }
+
+    const items = await sql`
+      SELECT menu_item_id, quantity FROM order_items WHERE order_id = ${id}
+    `;
+
+    for (const item of items) {
+      const recipeRows = await sql`
+        SELECT ingredient_id, quantity_per_unit::float AS qpu
+        FROM recipes WHERE menu_item_id = ${item.menu_item_id}
+      `;
+      if (recipeRows.length > 0) {
+        for (const r of recipeRows) {
+          const restore = parseFloat(r.qpu) * item.quantity;
+          await sql`
+            UPDATE ingredients
+            SET quantity = quantity + ${restore}, updated_at = now()
+            WHERE id = ${r.ingredient_id}
+          `;
+        }
+      } else {
+        await sql`
+          UPDATE inventory
+          SET quantity = quantity + ${item.quantity}, last_updated = now()
+          WHERE menu_item_id = ${item.menu_item_id}
+        `;
+      }
+    }
+
+    await sql`DELETE FROM order_items WHERE order_id = ${id}`;
+    await sql`DELETE FROM payments WHERE order_id = ${id}`;
+    await sql`DELETE FROM orders WHERE id = ${id}`;
+
+    io.to('kitchen').emit('order:deleted', { id });
+    io.to('managers').emit('order:deleted', { id });
+    io.to('cashiers').emit('order:deleted', { id });
+
+    return successResponse(res, null, `Order ${orders[0].order_number} deleted`);
+  } catch (error) {
+    console.error('Delete order error:', error);
+    return errorResponse(res, 'Failed to delete order', 500);
+  }
+}
+
 export async function getTodaySummary(req: AuthRequest, res: Response) {
   try {
     const summary = await sql`

@@ -71,6 +71,7 @@ export const ordersApi = {
   updateStatus: (id: string, status: string) =>
     api.put(`/orders/${id}/status`, { status }),
   cancel: (id: string) => api.put(`/orders/${id}/cancel`),
+  delete: (id: string) => api.delete(`/orders/${id}`),
   getTodaySummary: () => api.get('/orders/today/summary'),
 };
 
