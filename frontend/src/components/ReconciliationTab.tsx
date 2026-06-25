@@ -33,6 +33,9 @@ export default function ReconciliationTab() {
   const [counting, setCounting] = useState(false);
   const [counts, setCounts] = useState<Record<string, string>>({});
   const [countNotes, setCountNotes] = useState('');
+  const [filterDept, setFilterDept] = useState<string>('all');
+  const [actuals, setActuals] = useState<Record<string, string>>({});
+  const [hasEdits, setHasEdits] = useState(false);
 
   const { data: report, isLoading } = useQuery({
     queryKey: ['reconciliation', date],
@@ -86,10 +89,6 @@ export default function ReconciliationTab() {
   for (const d of departments) {
     grouped[d] = items.filter((i) => (i.department || 'Kitchen') === d);
   }
-
-  const [filterDept, setFilterDept] = useState<string>('all');
-  const [actuals, setActuals] = useState<Record<string, string>>({});
-  const [hasEdits, setHasEdits] = useState(false);
 
   const saveActuals = useMutation({
     mutationFn: async () => {
