@@ -40,6 +40,8 @@ export default function ReconciliationTab() {
       const res = await reconciliationApi.get(date);
       return res.data.data as { date: string; items: ReconciliationItem[] };
     },
+    staleTime: 2 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   const { data: ingredients } = useQuery({
@@ -65,8 +67,18 @@ export default function ReconciliationTab() {
   });
 
   const items = report?.items || [];
-  const totalVariance = items.reduce((s, i) => s + (i.variance ?? 0), 0);
-  const hasVariance = items.some((i) => i.variance !== null && Math.abs(i.variance) > 0.01);
+
+  // Compute variance live from typed input — falls back to server value when no input
+  const getLiveVariance = (item: ReconciliationItem): number | null => {
+    const typed = actuals[item.ingredientId];
+    if (typed !== undefined && typed !== '' && !isNaN(parseFloat(typed))) {
+      return item.theoreticalClosing - parseFloat(typed);
+    }
+    return item.variance;
+  };
+
+  const liveTotalVariance = items.reduce((s, i) => s + (getLiveVariance(i) ?? 0), 0);
+  const liveHasVariance   = items.some((i) => { const v = getLiveVariance(i); return v !== null && Math.abs(v) > 0.01; });
 
   // Group items by department
   const departments = Array.from(new Set(items.map((i) => i.department || 'Kitchen')));
@@ -206,13 +218,13 @@ export default function ReconciliationTab() {
               <span className="text-xs text-text-muted">Items</span>
               <span className="font-display font-bold text-text-primary">{items.length}</span>
             </div>
-            <div className={`card px-4 py-2 flex items-center gap-2 ${hasVariance ? 'border-secondary' : 'border-success'}`}>
-              {hasVariance
+            <div className={`card px-4 py-2 flex items-center gap-2 ${liveHasVariance ? 'border-secondary' : 'border-success'}`}>
+              {liveHasVariance
                 ? <AlertTriangle className="w-4 h-4 text-secondary" />
                 : <CheckCircle2 className="w-4 h-4 text-success" />}
               <span className="text-xs text-text-muted">Total Variance</span>
-              <span className={`font-display font-bold ${hasVariance ? 'text-secondary' : 'text-success'}`}>
-                {fmt(Math.round(totalVariance * 100) / 100)}
+              <span className={`font-display font-bold ${liveHasVariance ? 'text-secondary' : 'text-success'}`}>
+                {fmt(Math.round(liveTotalVariance * 100) / 100)}
               </span>
             </div>
           </div>
@@ -236,7 +248,13 @@ export default function ReconciliationTab() {
 
       {/* Reconciliation Table */}
       {isLoading ? (
-        <div className="text-center py-12 text-text-muted">Loading reconciliation data...</div>
+        <div className="flex flex-col items-center py-16 gap-3 text-text-muted">
+          <svg className="animate-spin w-8 h-8 text-primary" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+          </svg>
+          <span className="text-sm">Loading reconciliation data…</span>
+        </div>
       ) : items.length === 0 ? (
         <div className="text-center py-12 text-text-muted">No ingredients found. Add ingredients first.</div>
       ) : (
@@ -265,7 +283,7 @@ export default function ReconciliationTab() {
                 {(filterDept === 'all' ? departments : [filterDept]).map((dept) => {
                   const deptItems = grouped[dept] || [];
                   if (deptItems.length === 0) return null;
-                  const deptVariance = deptItems.reduce((s, i) => s + (i.variance ?? 0), 0);
+                  const deptVariance = deptItems.reduce((s, i) => s + (getLiveVariance(i) ?? 0), 0);
                   return (
                     <>
                       <tr key={`dept-${dept}`} className="bg-panel-2/70">
@@ -281,12 +299,14 @@ export default function ReconciliationTab() {
                         </td>
                       </tr>
                       {deptItems.map((item) => {
-                        const v = item.variance;
+                        const typedActual = actuals[item.ingredientId];
+                        const isTyped = typedActual !== undefined && typedActual !== '' && !isNaN(parseFloat(typedActual));
+                        const v = getLiveVariance(item);
                         const hasV = v !== null && Math.abs(v) > 0.01;
                         const isShortage = v !== null && v > 0.01;
                         const isSurplus = v !== null && v < -0.01;
                         return (
-                          <tr key={item.ingredientId} className="border-b border-border/50 hover:bg-panel-2/50 transition-colors">
+                          <tr key={item.ingredientId} className={`border-b border-border/50 hover:bg-panel-2/50 transition-colors ${isTyped ? 'bg-primary/5' : ''}`}>
                             <td className="px-4 py-3">
                               <div className="font-medium text-text-primary">{item.name}</div>
                               <div className="text-[10px] text-text-muted">{item.unit}</div>
@@ -307,7 +327,11 @@ export default function ReconciliationTab() {
                                 type="number"
                                 step="any"
                                 min="0"
-                                className="w-20 px-2 py-1 text-right text-sm font-bold border border-border rounded-lg bg-panel focus:border-primary focus:ring-1 focus:ring-primary/30 outline-none tabular-nums"
+                                className={`w-20 px-2 py-1 text-right text-sm font-bold border rounded-lg bg-panel outline-none tabular-nums transition-colors ${
+                                  isTyped
+                                    ? 'border-primary ring-1 ring-primary/30'
+                                    : 'border-border focus:border-primary focus:ring-1 focus:ring-primary/30'
+                                }`}
                                 placeholder={item.actualClosing !== null ? fmt(item.actualClosing) : '—'}
                                 value={actuals[item.ingredientId] ?? ''}
                                 onChange={(e) => updateActual(item.ingredientId, e.target.value)}
@@ -315,18 +339,22 @@ export default function ReconciliationTab() {
                             </td>
                             <td className="px-3 py-3 text-right">
                               {v === null ? (
-                                <span className="text-text-muted">—</span>
+                                <span className="text-text-muted text-xs">enter actual</span>
                               ) : !hasV ? (
                                 <span className="inline-flex items-center gap-1 text-success font-medium">
                                   <Minus className="w-3 h-3" /> 0
                                 </span>
                               ) : isShortage ? (
-                                <span className="inline-flex items-center gap-1 text-danger font-bold">
-                                  <ArrowDown className="w-3 h-3" /> {fmt(Math.abs(v))}
+                                <span className={`inline-flex items-center gap-1 font-bold ${isTyped ? 'text-danger' : 'text-danger'}`}>
+                                  <ArrowDown className="w-3 h-3" />
+                                  <span>{fmt(Math.abs(v))}</span>
+                                  {isTyped && <span className="text-[9px] font-normal text-danger/70 ml-0.5">shortage</span>}
                                 </span>
                               ) : isSurplus ? (
-                                <span className="inline-flex items-center gap-1 text-success font-bold">
-                                  <ArrowUp className="w-3 h-3" /> {fmt(Math.abs(v))}
+                                <span className={`inline-flex items-center gap-1 font-bold ${isTyped ? 'text-success' : 'text-success'}`}>
+                                  <ArrowUp className="w-3 h-3" />
+                                  <span>{fmt(Math.abs(v))}</span>
+                                  {isTyped && <span className="text-[9px] font-normal text-success/70 ml-0.5">surplus</span>}
                                 </span>
                               ) : null}
                             </td>

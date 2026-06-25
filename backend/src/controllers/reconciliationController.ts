@@ -19,117 +19,111 @@ export async function getReconciliation(req: AuthRequest, res: Response) {
   try {
     const { date } = reconciliationQuerySchema.parse(req.query);
     const reportDate = date || new Date().toISOString().slice(0, 10);
+    const today = new Date().toISOString().slice(0, 10);
 
-    // Get all active ingredients
-    const ingredients = await sql`
-      SELECT id, name, unit, quantity::float AS "currentStock",
-             COALESCE(department, 'Kitchen') AS department
-      FROM ingredients
-      WHERE is_active = TRUE
-      ORDER BY department, name
-    `;
+    const prevDay = new Date(reportDate);
+    prevDay.setDate(prevDay.getDate() - 1);
+    const prevDateStr = prevDay.toISOString().slice(0, 10);
 
-    const results: any[] = [];
-
-    for (const ing of ingredients) {
-      // Opening stock: from the stock_counts table for the previous day,
-      // or fall back to current stock + sales + waste - purchases for that day
-      const prevDay = new Date(reportDate);
-      prevDay.setDate(prevDay.getDate() - 1);
-      const prevDateStr = prevDay.toISOString().slice(0, 10);
-
-      const openingCount = await sql`
-        SELECT quantity::float AS quantity
-        FROM stock_counts
-        WHERE ingredient_id = ${ing.id} AND count_date = ${prevDateStr}
-        LIMIT 1
-      `;
-
-      // Purchases for the date (from ingredient_receipts)
-      const purchasesResult = await sql`
-        SELECT COALESCE(SUM(quantity), 0)::float AS total
+    // Single batch CTE query — replaces the old N×5 per-ingredient query loop.
+    // For N ingredients this used to fire N*5 separate HTTP requests to Neon;
+    // now it's one round-trip regardless of ingredient count.
+    const rows = await sql`
+      WITH
+      purchases_agg AS (
+        SELECT ingredient_id, SUM(quantity)::float AS total
         FROM ingredient_receipts
-        WHERE ingredient_id = ${ing.id} AND received_at = ${reportDate}
-      `;
-      const purchases = purchasesResult[0].total;
-
-      // Sales deductions for the date (from orders + recipes)
-      const salesResult = await sql`
-        SELECT COALESCE(SUM(oi.quantity * r.quantity_per_unit), 0)::float AS total
+        WHERE received_at = ${reportDate}::date
+        GROUP BY ingredient_id
+      ),
+      sales_agg AS (
+        SELECT r.ingredient_id, SUM(oi.quantity * r.quantity_per_unit)::float AS total
         FROM order_items oi
         JOIN orders o ON oi.order_id = o.id
-        JOIN recipes r ON r.menu_item_id = oi.menu_item_id AND r.ingredient_id = ${ing.id}
-        WHERE DATE(o.created_at) = ${reportDate}::date
+        JOIN recipes r ON r.menu_item_id = oi.menu_item_id
+        WHERE DATE(o.created_at AT TIME ZONE 'Africa/Harare') = ${reportDate}::date
           AND o.status != 'cancelled'
-      `;
-      const sales = salesResult[0].total;
-
-      // Wastages for the date
-      const wastageResult = await sql`
-        SELECT COALESCE(SUM(quantity), 0)::float AS total
+        GROUP BY r.ingredient_id
+      ),
+      wastage_agg AS (
+        SELECT ingredient_id, SUM(quantity)::float AS total
         FROM waste_records
-        WHERE ingredient_id = ${ing.id} AND recorded_at = ${reportDate}
-      `;
-      const wastage = wastageResult[0].total;
+        WHERE recorded_at = ${reportDate}::date
+        GROUP BY ingredient_id
+      ),
+      opening_counts AS (
+        SELECT ingredient_id, quantity::float AS qty
+        FROM stock_counts
+        WHERE count_date = ${prevDateStr}::date
+      ),
+      actual_counts AS (
+        SELECT ingredient_id, quantity::float AS qty
+        FROM stock_counts
+        WHERE count_date = ${reportDate}::date
+      )
+      SELECT
+        i.id                                      AS "ingredientId",
+        i.name,
+        i.unit,
+        COALESCE(i.department, 'Kitchen')         AS department,
+        i.quantity::float                         AS "currentStock",
+        oc.qty                                    AS "openingCountQty",
+        COALESCE(p.total, 0)                      AS purchases,
+        COALESCE(s.total, 0)                      AS sales,
+        COALESCE(w.total, 0)                      AS wastage,
+        ac.qty                                    AS "actualClosing"
+      FROM ingredients i
+      LEFT JOIN opening_counts oc ON oc.ingredient_id = i.id
+      LEFT JOIN purchases_agg  p  ON p.ingredient_id  = i.id
+      LEFT JOIN sales_agg      s  ON s.ingredient_id  = i.id
+      LEFT JOIN wastage_agg    w  ON w.ingredient_id  = i.id
+      LEFT JOIN actual_counts  ac ON ac.ingredient_id = i.id
+      WHERE i.is_active = TRUE
+      ORDER BY COALESCE(i.department, 'Kitchen'), i.name
+    `;
 
-      // Transfers (not implemented yet — placeholder)
-      const transfers = 0;
+    const results = rows.map((row: any) => {
+      const purchases  = parseFloat(String(row.purchases  ?? 0));
+      const sales      = parseFloat(String(row.sales      ?? 0));
+      const wastage    = parseFloat(String(row.wastage    ?? 0));
+      const transfers  = 0;
+      const currentStock = parseFloat(String(row.currentStock ?? 0));
 
-      // Opening stock: if we have a physical count for previous day, use it.
-      // Otherwise derive: current stock is the result of all movements up to now,
-      // so opening = current + sales + waste + transfers - purchases (for today only if report is today)
       let openingStock: number;
-      if (openingCount.length > 0) {
-        openingStock = openingCount[0].quantity;
+      if (row.openingCountQty != null) {
+        openingStock = parseFloat(String(row.openingCountQty));
+      } else if (reportDate === today) {
+        openingStock = currentStock + sales + wastage + transfers - purchases;
       } else {
-        // If reporting on today: opening = current + today's sales + waste - purchases
-        const today = new Date().toISOString().slice(0, 10);
-        if (reportDate === today) {
-          openingStock = ing.currentStock + sales + wastage + transfers - purchases;
-        } else {
-          // For past dates without a count, we can't reliably determine opening
-          // Use 0 as fallback (user should do physical counts)
-          openingStock = 0;
-        }
+        openingStock = 0;
       }
 
-      // Theoretical closing stock
       const theoreticalClosing = openingStock + purchases - sales - wastage - transfers;
 
-      // Actual closing: from stock_counts for this date, or current stock if today
-      const actualCountResult = await sql`
-        SELECT quantity::float AS quantity
-        FROM stock_counts
-        WHERE ingredient_id = ${ing.id} AND count_date = ${reportDate}
-        LIMIT 1
-      `;
-
-      const today = new Date().toISOString().slice(0, 10);
       let actualClosing: number | null = null;
-      if (actualCountResult.length > 0) {
-        actualClosing = actualCountResult[0].quantity;
+      if (row.actualClosing != null) {
+        actualClosing = parseFloat(String(row.actualClosing));
       } else if (reportDate === today) {
-        actualClosing = ing.currentStock;
+        actualClosing = currentStock;
       }
 
-      // Variance = Theoretical - Actual (positive = shortage, negative = surplus)
       const variance = actualClosing !== null ? theoreticalClosing - actualClosing : null;
 
-      results.push({
-        ingredientId: ing.id,
-        name: ing.name,
-        unit: ing.unit,
-        department: ing.department,
-        openingStock: Math.round(openingStock * 1000) / 1000,
-        purchases: Math.round(purchases * 1000) / 1000,
-        sales: Math.round(sales * 1000) / 1000,
-        wastage: Math.round(wastage * 1000) / 1000,
+      return {
+        ingredientId: row.ingredientId,
+        name: row.name,
+        unit: row.unit,
+        department: row.department,
+        openingStock:         Math.round(openingStock         * 1000) / 1000,
+        purchases:            Math.round(purchases            * 1000) / 1000,
+        sales:                Math.round(sales                * 1000) / 1000,
+        wastage:              Math.round(wastage              * 1000) / 1000,
         transfers,
-        theoreticalClosing: Math.round(theoreticalClosing * 1000) / 1000,
-        actualClosing: actualClosing !== null ? Math.round(actualClosing * 1000) / 1000 : null,
-        variance: variance !== null ? Math.round(variance * 1000) / 1000 : null,
-      });
-    }
+        theoreticalClosing:   Math.round(theoreticalClosing   * 1000) / 1000,
+        actualClosing:        actualClosing  !== null ? Math.round(actualClosing  * 1000) / 1000 : null,
+        variance:             variance       !== null ? Math.round(variance       * 1000) / 1000 : null,
+      };
+    });
 
     return successResponse(res, { date: reportDate, items: results });
   } catch (error) {
