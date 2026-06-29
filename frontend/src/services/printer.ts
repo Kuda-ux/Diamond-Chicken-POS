@@ -553,7 +553,7 @@ export const renderDailySalesReport = (r: DailySalesReportPayload): string => {
     row(`  ${METHOD_ABBR[p.method] || p.method.toUpperCase()} ×${p.count}`, `$${num(p.revenue).toFixed(2)}`)
   ).join('');
 
-  const productRows = products.slice(0, 20).map((p) =>
+  const productRows = products.map((p) =>
     `<div class="prow"><span class="pname">${escapeHtml(p.name)}</span><span class="pqty">×${p.quantitySold}</span><span class="prev">$${num(p.revenue).toFixed(2)}</span></div>`
   ).join('');
 
