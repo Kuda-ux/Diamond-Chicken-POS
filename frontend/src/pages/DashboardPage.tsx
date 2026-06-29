@@ -3,8 +3,9 @@ import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import {
   DollarSign, ShoppingBag, TrendingUp, Package, AlertTriangle,
-  LogOut, Boxes, Diamond, Activity, Flame, Users, Clock, Award, AlertCircle, UtensilsCrossed, FileText, Calendar, Trash2,
+  LogOut, Boxes, Diamond, Activity, Flame, Users, Clock, Award, AlertCircle, UtensilsCrossed, FileText, Calendar, Trash2, History,
 } from 'lucide-react';
+import OrderHistoryModal from '../components/OrderHistoryModal';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell,
@@ -12,6 +13,7 @@ import {
 import { statsApi, ordersApi } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 import { getSocket, joinRoom } from '../services/socket';
+
 
 const METHOD_META: Record<string, { color: string; label: string }> = {
   cash: { color: '#22C55E', label: 'Cash' },
@@ -68,6 +70,7 @@ export default function DashboardPage() {
   const [customTo, setCustomTo] = useState('');
   const [appliedCustom, setAppliedCustom] = useState<{ from: string; to: string } | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   const canManageOrders = user?.role === 'admin' || user?.role === 'manager';
 
@@ -491,7 +494,15 @@ export default function DashboardPage() {
                 <h3 className="font-display text-base sm:text-lg font-bold text-text-primary">Live Order Feed</h3>
                 <p className="text-xs text-text-muted mt-0.5">Most recent orders, updated in real time</p>
               </div>
-              <span className="chip chip-success"><span className="dot dot-live" /> Live</span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setHistoryOpen(true)}
+                  className="btn btn-ghost text-xs border-border gap-1.5 py-1.5 px-3"
+                >
+                  <History className="w-3.5 h-3.5" /> History
+                </button>
+                <span className="chip chip-success"><span className="dot dot-live" /> Live</span>
+              </div>
             </div>
             <div className="space-y-2 max-h-[420px] overflow-y-auto -mr-2 pr-2">
               {recentOrders.length === 0 ? (
@@ -596,6 +607,8 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      <OrderHistoryModal open={historyOpen} onClose={() => setHistoryOpen(false)} />
     </div>
   );
 }
