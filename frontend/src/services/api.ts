@@ -87,8 +87,8 @@ export const receiptsApi = {
 export const statsApi = {
   dashboard: (params?: { range?: string; from?: string; to?: string }) =>
     api.get('/stats/dashboard', { params }),
-  dailyReport: (date?: string) =>
-    api.get('/stats/daily-report', { params: { date } }),
+  dailyReport: (params: { date?: string; from?: string; to?: string } = {}) =>
+    api.get('/stats/daily-report', { params }),
 };
 
 export const inventoryApi = {

@@ -239,16 +239,31 @@ export async function getDashboardStats(req: AuthRequest, res: Response) {
 }
 
 // GET /api/stats/daily-report?date=YYYY-MM-DD
-// Returns everything needed for a downloadable daily PDF report
+// GET /api/stats/daily-report?from=YYYY-MM-DD&to=YYYY-MM-DD  (inclusive range)
+// Returns everything needed for a downloadable daily/range PDF report
 export async function getDailyReport(req: AuthRequest, res: Response) {
   try {
+    const TZ_OFFSET_MIN = 120;
+    const fromParam = req.query.from as string | undefined;
+    const toParam   = req.query.to   as string | undefined;
     const dateParam = String(req.query.date || new Date().toISOString().slice(0, 10));
 
-    // Convert date to UTC range for Harare timezone
-    const TZ_OFFSET_MIN = 120;
-    const [y, m, d] = dateParam.split('-').map(Number);
-    const from = new Date(Date.UTC(y, m - 1, d, 0, 0, 0) - TZ_OFFSET_MIN * 60 * 1000);
-    const to = new Date(Date.UTC(y, m - 1, d + 1, 0, 0, 0) - TZ_OFFSET_MIN * 60 * 1000);
+    let from: Date, to: Date, displayDate: string;
+
+    if (fromParam && toParam) {
+      // Range mode
+      const [fy, fm, fd] = fromParam.split('-').map(Number);
+      const [ty, tm, td] = toParam.split('-').map(Number);
+      from = new Date(Date.UTC(fy, fm - 1, fd, 0, 0, 0) - TZ_OFFSET_MIN * 60 * 1000);
+      to   = new Date(Date.UTC(ty, tm - 1, td + 1, 0, 0, 0) - TZ_OFFSET_MIN * 60 * 1000);
+      displayDate = `${fromParam} to ${toParam}`;
+    } else {
+      // Single date mode (existing behaviour)
+      const [y, m, d] = dateParam.split('-').map(Number);
+      from = new Date(Date.UTC(y, m - 1, d, 0, 0, 0) - TZ_OFFSET_MIN * 60 * 1000);
+      to   = new Date(Date.UTC(y, m - 1, d + 1, 0, 0, 0) - TZ_OFFSET_MIN * 60 * 1000);
+      displayDate = dateParam;
+    }
 
     // Sales summary
     const [summary] = await sql`
@@ -304,7 +319,9 @@ export async function getDailyReport(req: AuthRequest, res: Response) {
       ORDER BY name
     `;
 
-    // Waste for the day
+    // Waste for the period
+    const wasteFrom = fromParam || dateParam;
+    const wasteTo   = toParam   || dateParam;
     const waste = await sql`
       SELECT
         i.name AS "ingredientName",
@@ -314,7 +331,7 @@ export async function getDailyReport(req: AuthRequest, res: Response) {
         (SUM(w.quantity) * COALESCE(i.unit_cost, 0))::float AS "wasteCost"
       FROM waste_records w
       JOIN ingredients i ON w.ingredient_id = i.id
-      WHERE w.recorded_at = ${dateParam}
+      WHERE w.recorded_at >= ${wasteFrom}::date AND w.recorded_at <= ${wasteTo}::date
       GROUP BY i.id, i.name, i.unit, i.unit_cost
       ORDER BY "wasteCost" DESC
     `;
@@ -322,7 +339,10 @@ export async function getDailyReport(req: AuthRequest, res: Response) {
     const totalWasteCost = waste.reduce((s: number, w: any) => s + (w.wasteCost || 0), 0);
 
     return successResponse(res, {
-      date: dateParam,
+      date: displayDate,
+      from: fromParam || dateParam,
+      to:   toParam   || dateParam,
+      isRange: !!(fromParam && toParam),
       summary,
       paymentMethods,
       productsSold,

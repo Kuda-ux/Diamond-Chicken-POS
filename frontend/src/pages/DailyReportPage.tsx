@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
   ArrowLeft, Download, FileText, DollarSign, ShoppingBag,
-  Package, AlertTriangle, Printer,
+  Package, AlertTriangle, Printer, Calendar, CalendarRange,
 } from 'lucide-react';
 import { statsApi } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
@@ -21,13 +21,23 @@ export default function DailyReportPage() {
   const { user } = useAuthStore();
   const reportRef = useRef<HTMLDivElement>(null);
   const today = new Date().toISOString().slice(0, 10);
+  const [mode, setMode] = useState<'single' | 'range'>('single');
   const [date, setDate] = useState(today);
+  const [rangeFrom, setRangeFrom] = useState(today);
+  const [rangeTo, setRangeTo] = useState(today);
   const [thermalStatus, setThermalStatus] = useState('');
   const [thermalLoading, setThermalLoading] = useState(false);
 
+  const queryParams = mode === 'range'
+    ? { from: rangeFrom, to: rangeTo }
+    : { date };
+
+  const rangeValid = mode !== 'range' || rangeFrom <= rangeTo;
+
   const { data, isLoading } = useQuery({
-    queryKey: ['daily-report', date],
-    queryFn: async () => (await statsApi.dailyReport(date)).data.data,
+    queryKey: ['daily-report', queryParams],
+    queryFn: async () => (await statsApi.dailyReport(queryParams)).data.data,
+    enabled: rangeValid,
   });
 
   const summary = data?.summary || {};
@@ -36,13 +46,15 @@ export default function DailyReportPage() {
   const stockLevels: any[] = data?.stockLevels || [];
   const waste = data?.waste || { items: [], totalCost: 0 };
 
+  const reportDateLabel = data?.date || (mode === 'range' ? `${rangeFrom} to ${rangeTo}` : date);
+
   const handleThermalPrint = async () => {
     if (!data) return;
     setThermalLoading(true);
     setThermalStatus('');
     try {
       const result = await printDailySalesReport({
-        date,
+        date: reportDateLabel,
         summary,
         paymentMethods,
         productsSold,
@@ -76,7 +88,7 @@ export default function DailyReportPage() {
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Daily Report - Diamond Chicken - ${date}</title>
+        <title>Sales Report - Diamond Chicken - ${reportDateLabel}</title>
         <style>
           * { margin: 0; padding: 0; box-sizing: border-box; }
           body { font-family: 'Segoe UI', Arial, sans-serif; color: #1a1a1a; padding: 24px; max-width: 800px; margin: 0 auto; }
@@ -200,23 +212,54 @@ export default function DailyReportPage() {
               <p className="text-[10px] sm:text-xs text-text-muted mt-1">Sales, stock & waste summary</p>
             </div>
           </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              max={today}
-              className="input text-sm"
-            />
+          <div className="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end">
+            {/* Mode toggle */}
+            <div className="flex rounded-xl border border-border overflow-hidden text-xs">
+              <button
+                onClick={() => setMode('single')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 transition-colors ${
+                  mode === 'single' ? 'bg-primary text-white' : 'hover:bg-panel-2 text-text-muted'
+                }`}
+              >
+                <Calendar className="w-3.5 h-3.5" /> Single Day
+              </button>
+              <button
+                onClick={() => setMode('range')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 transition-colors ${
+                  mode === 'range' ? 'bg-primary text-white' : 'hover:bg-panel-2 text-text-muted'
+                }`}
+              >
+                <CalendarRange className="w-3.5 h-3.5" /> Date Range
+              </button>
+            </div>
+
+            {/* Date input(s) */}
+            {mode === 'single' ? (
+              <input type="date" value={date} max={today}
+                onChange={e => setDate(e.target.value)}
+                className="input text-sm w-36" />
+            ) : (
+              <div className="flex items-center gap-1.5">
+                <input type="date" value={rangeFrom} max={today}
+                  onChange={e => setRangeFrom(e.target.value)}
+                  className="input text-sm w-32" />
+                <span className="text-text-muted text-xs">to</span>
+                <input type="date" value={rangeTo} min={rangeFrom} max={today}
+                  onChange={e => setRangeTo(e.target.value)}
+                  className="input text-sm w-32" />
+                {!rangeValid && <span className="text-xs text-red-400">Invalid range</span>}
+              </div>
+            )}
+
             <button
               onClick={handleThermalPrint}
-              disabled={isLoading || !data || thermalLoading}
+              disabled={isLoading || !data || thermalLoading || !rangeValid}
               className="btn btn-ghost text-xs sm:text-sm border-border"
             >
               <Printer className="w-4 h-4" />
               <span className="hidden sm:inline">{thermalLoading ? 'Printing…' : 'Print Thermal'}</span>
             </button>
-            <button onClick={handlePrint} disabled={isLoading || !data} className="btn btn-primary text-xs sm:text-sm">
+            <button onClick={handlePrint} disabled={isLoading || !data || !rangeValid} className="btn btn-primary text-xs sm:text-sm">
               <Download className="w-4 h-4" /> <span className="hidden sm:inline">Download PDF</span>
             </button>
             {thermalStatus && <span className="text-xs text-text-secondary">{thermalStatus}</span>}
@@ -233,8 +276,14 @@ export default function DailyReportPage() {
           <>
             {/* Date banner */}
             <div className="bg-panel border border-border rounded-2xl p-5 sm:p-6 text-center">
-              <h2 className="font-display text-2xl sm:text-3xl font-bold text-text-primary">{formatDateDisplay(date)}</h2>
-              <p className="text-sm text-text-muted mt-1">Daily Business Report</p>
+              <h2 className="font-display text-2xl sm:text-3xl font-bold text-text-primary">
+                {mode === 'range'
+                  ? `${formatDateDisplay(rangeFrom)} – ${formatDateDisplay(rangeTo)}`
+                  : formatDateDisplay(date)}
+              </h2>
+              <p className="text-sm text-text-muted mt-1">
+                {mode === 'range' ? 'Date Range Report' : 'Daily Business Report'}
+              </p>
             </div>
 
             {/* KPI Cards */}
