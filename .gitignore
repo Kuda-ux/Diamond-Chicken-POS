@@ -13,3 +13,7 @@ coverage/
 .vercel
 .env*.local
 .neon
+
+# Electron packaged builds
+desktop/release/
+desktop/release-*/

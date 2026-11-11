@@ -1,8 +1,20 @@
 const { app, BrowserWindow, Menu, shell, dialog, session, ipcMain } = require('electron');
 const path = require('path');
+const fs = require('fs');
 
-// Production POS URL (the deployed Vercel app — auto-updates when we ship features)
-const APP_URL = process.env.DC_POS_URL || 'https://diamond-chicken-pos.vercel.app';
+// Branch selection: app-config.json (written at build time) > DC_POS_URL env > branch 1 default
+function loadBranchConfig() {
+  try {
+    const cfgPath = path.join(__dirname, 'app-config.json');
+    if (fs.existsSync(cfgPath)) return JSON.parse(fs.readFileSync(cfgPath, 'utf-8'));
+  } catch (e) {
+    console.error('Failed to read app-config.json:', e.message);
+  }
+  return {};
+}
+const branchConfig = loadBranchConfig();
+const APP_URL = process.env.DC_POS_URL || branchConfig.url || 'https://diamond-chicken-pos.vercel.app';
+const APP_TITLE = branchConfig.title || 'Diamond Chicken POS';
 const isDev = !app.isPackaged;
 
 let mainWindow = null;
@@ -32,7 +44,7 @@ function createMainWindow() {
     minHeight: 700,
     show: false,
     backgroundColor: '#0B0B0F',
-    title: 'Diamond Chicken POS',
+    title: APP_TITLE,
     icon: path.join(__dirname, 'build', 'icon.ico'),
     autoHideMenuBar: true,
     webPreferences: {
@@ -85,7 +97,7 @@ function createMainWindow() {
     dialog.showMessageBox(mainWindow, {
       type: 'warning',
       title: 'No connection',
-      message: 'Cannot reach Diamond Chicken POS',
+      message: 'Cannot reach ' + APP_TITLE,
       detail:
         `Failed to load ${APP_URL}\n\n` +
         `Reason: ${desc}\n\n` +
@@ -147,8 +159,8 @@ function buildMenu() {
           click: () =>
             dialog.showMessageBox(mainWindow, {
               type: 'info',
-              title: 'About Diamond Chicken POS',
-              message: 'Diamond Chicken POS',
+              title: 'About ' + APP_TITLE,
+              message: APP_TITLE,
               detail:
                 `Version ${app.getVersion()}\n` +
                 `Server: ${APP_URL}\n\n` +
