@@ -6,11 +6,14 @@ import { Pool } from '@neondatabase/serverless';
 export async function runMigrations() {
   console.log('🔄 Running database migrations...');
 
-  if (!process.env.DATABASE_URL) {
+  // Prefer the direct (unpooled) connection for migrations — pooled PgBouncer
+  // connections don't support the session state DDL/migration tools rely on.
+  const connectionString = process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL;
+  if (!connectionString) {
     throw new Error('DATABASE_URL is not set');
   }
 
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  const pool = new Pool({ connectionString });
 
   try {
     const migrationFiles = [
