@@ -232,6 +232,11 @@ app.patch('/api/campaigns/:id', auth, adminOnly, async (req, res) => {
   rows.length ? ok(res, rows[0], 'Campaign updated') : fail(res, 'Campaign not found', 404);
 });
 
+app.delete('/api/campaigns/:id', auth, adminOnly, async (req, res) => {
+  const { rows } = await pool.query('DELETE FROM campaigns WHERE id = $1 RETURNING id, title', [req.params.id]);
+  rows.length ? ok(res, rows[0], 'Campaign deleted') : fail(res, 'Campaign not found', 404);
+});
+
 app.get('/api/campaigns/:id/vouchers', auth, async (req, res) => {
   const { rows } = await pool.query(`
     SELECT v.code, v.phone, v.status, v.issued_at AS "issuedAt", v.redeemed_at AS "redeemedAt", v.redeem_branch AS "redeemBranch", u.name AS "redeemedBy"

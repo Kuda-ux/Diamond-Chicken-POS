@@ -156,6 +156,7 @@ async function loadCampaigns(){
         <button class="btn ghost sm" onclick="showQr('${c.id}','${esc(c.slug)}')">▣ QR code</button>
         <button class="btn ghost sm" onclick="toggleCamp('${c.id}',${!c.is_active})">${c.is_active?'Pause':'Resume'}</button>
         <button class="btn ghost sm" onclick="viewVouchers('${c.id}')">Vouchers</button>
+        <button class="btn danger sm" onclick="deleteCamp('${c.id}','${esc(c.title)}')">Delete</button>
       </div>
       <div id="vq-${c.id}" class="hidden vtable" style="margin-top:14px"></div>
     </div>`;
@@ -169,10 +170,23 @@ async function loadCampaigns(){
 
 window.showQr = async (id, slug) => {
   $('qrUrl').textContent = `${location.origin}/c/${slug}`;
-  $('qrImg').src = `/api/campaigns/${id}/qr.png?t=${Date.now()}`;
+  // <img> can't send the Authorization header — fetch the PNG as an authenticated blob
+  const r = await fetch(`/api/campaigns/${id}/qr.png`, { headers: { Authorization: 'Bearer ' + token } });
+  if (r.ok) {
+    $('qrImg').src = URL.createObjectURL(await r.blob());
+  } else {
+    $('qrImg').src = '';
+    $('qrUrl').textContent = 'QR failed to load — check your connection';
+  }
   $('qrModal').classList.remove('hidden');
 };
 window.toggleCamp = async (id, active) => { await api(`/api/campaigns/${id}`,{method:'PATCH',body:{is_active:active}}); loadCampaigns(); };
+window.deleteCamp = async (id, title) => {
+  if (!confirm(`Delete campaign "${title}" and ALL its vouchers? This cannot be undone.`)) return;
+  const j = await api(`/api/campaigns/${id}`, { method: 'DELETE' });
+  if (j.success) loadCampaigns();
+  else alert(j.error || 'Delete failed');
+};
 window.viewVouchers = async (id) => {
   const el = $('vq-'+id);
   if(!el.classList.contains('hidden')){el.classList.add('hidden');return}
