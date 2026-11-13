@@ -1,64 +1,62 @@
 <!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Diamond Rewards — Claim</title>
+<title>Diamond Rewards</title>
 <link rel="stylesheet" href="/style.css"/>
 </head><body>
 <div class="wrap">
   <header class="brand">
     <div class="mark">D</div>
     <div><b>DIAMOND CHICKEN</b><small>REWARDS</small></div>
+    <span class="tag">Official Promo</span>
   </header>
 
   <div class="hero">
-    <small>LIMITED TIME PROMOTION</small>
+    <small>LIMITED TIME OFFER</small>
     <h1 id="cTitle">…</h1>
     <p id="cReward"></p>
   </div>
 
-  <div class="card" id="claimCard">
-    <div class="between" style="display:flex;justify-content:space-between;align-items:center">
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
       <h2 style="margin:0">Claim your reward</h2>
-      <span class="pill on" id="cStatus">Checking…</span>
+      <span class="pill live" id="cStatus">Live</span>
     </div>
-    <p class="muted" id="cRemaining" style="margin:8px 0 0"></p>
+    <p class="muted" id="cRemaining" style="margin-top:8px"></p>
     <div class="bar"><i id="cBar" style="width:0%"></i></div>
 
     <div id="claimForm">
       <label for="phone">YOUR MOBILE NUMBER</label>
-      <input id="phone" type="tel" inputmode="tel" placeholder="e.g. 077 123 4567" maxlength="20"/>
-      <p class="muted" style="font-size:11px;margin-top:6px">One reward per mobile number. We'll use it only to prevent duplicate claims.</p>
-      <button class="btn" id="claimBtn" style="margin-top:16px">CLAIM MY REWARD</button>
+      <input id="phone" type="tel" inputmode="tel" placeholder="e.g. 077 123 4567" maxlength="20" autocomplete="tel"/>
+      <p class="sub" style="margin-top:6px">One reward per mobile number. Used only to prevent duplicate claims.</p>
+      <button class="btn" id="claimBtn" style="margin-top:20px">CLAIM MY REWARD →</button>
       <div class="msg" id="msg"></div>
-      <div style="margin-top:16px;font-size:12px;color:var(--sub);line-height:1.7">
-        ✓ Show your voucher code at any Diamond Chicken branch<br>
-        ✓ Collect before the deadline<br>
-        ✓ Each code works <b>once</b>
-      </div>
     </div>
 
     <div id="voucherResult" class="hidden">
-      <div class="msg ok" style="display:block">✓ Reward reserved for you! This code is valid only once.</div>
+      <div class="msg ok" style="display:block">Reward reserved — show this code at any Diamond Chicken branch</div>
       <div class="voucher">
-        <small>YOUR REWARD VOUCHER</small>
-        <div class="vcode" id="vCode"></div>
-        <strong id="vReward"></strong>
-        <p id="vExpiry"></p>
-        <p style="margin-top:10px">Present this code to Diamond Chicken staff to collect.</p>
+        <div class="vinner">
+          <small>YOUR VOUCHER CODE</small>
+          <div class="vcode" id="vCode"></div>
+          <strong id="vReward"></strong>
+          <div class="vmeta" id="vExpiry"></div>
+          <div class="vmeta">Present this code to staff to collect your reward.<br>Valid once only.</div>
+        </div>
       </div>
-      <button class="btn ghost" id="againBtn" style="margin-top:14px">Claim with another number</button>
+      <button class="btn ghost" id="againBtn" style="margin-top:16px">Claim with another number</button>
     </div>
   </div>
 
   <div class="card">
     <h2>How it works</h2>
-    <div class="list-item"><span>1. Scan the QR code</span><span class="muted">Share</span></div>
-    <div class="list-item"><span>2. Enter your mobile number</span><span class="muted">Claim</span></div>
-    <div class="list-item"><span>3. Get your unique voucher code</span><span class="muted">Instant</span></div>
-    <div class="list-item"><span>4. Collect at any Diamond Chicken branch</span><span class="muted">Before deadline</span></div>
+    <div class="list-item"><span>Scan the QR code</span><span class="pill on">1</span></div>
+    <div class="list-item"><span>Enter your mobile number</span><span class="pill on">2</span></div>
+    <div class="list-item"><span>Get your unique voucher code</span><span class="pill on">3</span></div>
+    <div class="list-item"><span>Collect at any Diamond Chicken branch</span><span class="pill on">4</span></div>
   </div>
 
-  <div class="footer">Diamond Rewards • Diamond Chicken • KuWeX Studios</div>
+  <div class="footer">Diamond Chicken • Fresh. Crispy. Legendary.<br><b>Diamond Rewards</b></div>
 </div>
 <script>
 const slug = location.pathname.split('/').filter(Boolean).pop();
@@ -84,10 +82,10 @@ async function load() {
     $('cTitle').textContent = campaign.title;
     $('cReward').textContent = campaign.reward;
     $('cStatus').textContent = campaign.isActive ? 'Live' : 'Paused';
-    $('cStatus').className = 'pill ' + (campaign.isActive ? 'on' : 'off');
+    $('cStatus').className = 'pill ' + (campaign.isActive ? 'live' : 'paused');
     const pct = campaign.maxVouchers ? Math.round((campaign.claimedCount / campaign.maxVouchers) * 100) : 0;
     $('cBar').style.width = pct + '%';
-    if (campaign.fullyClaimed) $('cRemaining').textContent = 'All rewards have been claimed. Look out for the next promotion!';
+    if (campaign.fullyClaimed) $('cRemaining').textContent = 'All rewards have been claimed — look out for the next promotion!';
     else if (campaign.claimEnded) $('cRemaining').textContent = 'The claim period for this promotion has ended.';
     else $('cRemaining').textContent = `${campaign.remaining} of ${campaign.maxVouchers} rewards still available — first come, first served.`;
     if (!campaign.claimOpen) {
@@ -98,7 +96,8 @@ async function load() {
     document.title = `${campaign.title} — Diamond Rewards`;
   } catch (e) {
     $('cTitle').textContent = 'Promotion unavailable';
-    $('claimCard').innerHTML = '<p class="muted">This promotion link is invalid or has expired.</p>';
+    $('claimCard') && 0;
+    document.querySelector('.card').innerHTML = '<div class="empty"><div class="big">🍗</div><p>This promotion link is invalid or has expired.</p></div>';
   }
 }
 
@@ -117,7 +116,6 @@ $('claimBtn').onclick = async () => {
     $('vExpiry').textContent = j.data.pickupEndsAt ? `Collect by ${fmtDate(j.data.pickupEndsAt)}` : 'Collect at any Diamond Chicken branch';
     $('claimForm').classList.add('hidden');
     $('voucherResult').classList.remove('hidden');
-    showMsg('', true);
     load();
   } catch (e) {
     showMsg('Network error — please try again', false);

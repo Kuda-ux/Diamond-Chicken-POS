@@ -8,50 +8,52 @@
   <header class="brand">
     <div class="mark">D</div>
     <div><b>DIAMOND CHICKEN</b><small>STAFF REDEMPTION</small></div>
+    <span class="tag">Internal</span>
   </header>
 
   <div id="loginView">
-    <div class="card" style="max-width:380px;margin:40px auto">
-      <h1>Staff sign in</h1>
-      <p class="muted">Enter your staff PIN or email + password.</p>
+    <div class="card" style="max-width:400px;margin:48px auto">
+      <div class="center" style="margin-bottom:18px"><div class="mark" style="margin:0 auto 12px">✓</div></div>
+      <h1 class="center" style="font-size:22px">Staff sign in</h1>
+      <p class="muted center" style="margin-bottom:8px">Verify & redeem customer reward vouchers</p>
       <label for="pin">STAFF PIN</label>
-      <input id="pin" type="password" inputmode="numeric" maxlength="10" placeholder="••••"/>
-      <div class="row" style="margin-top:10px">
+      <input id="pin" type="password" inputmode="numeric" maxlength="10" placeholder="Enter your PIN"/>
+      <div class="row" style="margin-top:14px">
         <div><label for="email">EMAIL (admin)</label><input id="email" type="email" placeholder="admin@…"/></div>
         <div><label for="password">PASSWORD</label><input id="password" type="password"/></div>
       </div>
-      <button class="btn" id="loginBtn" style="margin-top:18px">SIGN IN</button>
+      <button class="btn" id="loginBtn" style="margin-top:20px">SIGN IN →</button>
       <div class="msg" id="loginMsg"></div>
     </div>
   </div>
 
   <div id="appView" class="hidden">
     <div class="topbar">
-      <div><h1>Verify & redeem</h1><p class="muted">Check a customer's voucher code — each code can be redeemed once.</p></div>
-      <div><span class="muted" id="who"></span> <button class="btn ghost sm" id="logoutBtn">Sign out</button></div>
+      <div><h1>Verify & redeem</h1><p class="muted">Each voucher code works exactly once — across all branches.</p></div>
+      <div style="display:flex;align-items:center;gap:14px"><span class="pill on" id="who"></span> <button class="btn ghost sm" id="logoutBtn">Sign out</button></div>
     </div>
 
     <div class="card">
       <label for="code">CUSTOMER VOUCHER CODE</label>
       <input id="code" class="code-input" placeholder="DC-XXXXXXX" autocomplete="off"/>
-      <div class="row" style="margin-top:14px">
-        <div><label for="branch">YOUR BRANCH</label>
-          <select id="branch"><option>Branch 1 — Bulawayo</option><option>Branch 2</option></select></div>
-        <div style="align-self:end"><button class="btn dark" id="verifyBtn">VERIFY CODE</button></div>
+      <div class="row" style="margin-top:16px;align-items:end">
+        <div style="flex:2"><label for="branch">YOUR BRANCH</label>
+          <select id="branch"><option>Branch 1 — Bulawayo</option><option>Branch 2</option><option>Other Diamond Chicken branch</option></select></div>
+        <div style="flex:1"><button class="btn dark" id="verifyBtn">VERIFY →</button></div>
       </div>
       <div class="msg" id="msg"></div>
       <div id="result"></div>
     </div>
 
     <div class="card">
-      <h2>How redemption works</h2>
-      <div class="list-item"><span>✓ Valid & unused</span><span class="pill issued">Issued</span></div>
-      <div class="list-item"><span>✕ Already redeemed / invalid</span><span class="pill redeemed">Rejected</span></div>
-      <p class="muted" style="margin-top:10px;font-size:12px">Every redemption is recorded centrally with staff name, time and branch — preventing double-collection across all branches.</p>
+      <h2>Redemption rules</h2>
+      <div class="list-item"><span>✓ Valid & unused voucher</span><span class="pill issued">Issued</span></div>
+      <div class="list-item"><span>✕ Already redeemed or invalid</span><span class="pill redeemed">Rejected</span></div>
+      <p class="sub" style="margin-top:12px">Every redemption is recorded centrally with staff name, time and branch — so the same voucher can never be collected twice, even at different branches.</p>
     </div>
   </div>
 
-  <div class="footer">Diamond Rewards • Diamond Chicken • KuWeX Studios</div>
+  <div class="footer">Diamond Chicken • Fresh. Crispy. Legendary.</div>
 </div>
 <script>
 const $ = id => document.getElementById(id);
@@ -105,21 +107,24 @@ $('verifyBtn').onclick = async () => {
     if (!j.success) { showMsg(j.error || 'Voucher not found', false); return; }
     const v = j.data;
     const phone = v.phone.replace(/(\+?\d{3})\d+(\d{2})$/, '$1 ••• ••$2');
-    let html = `<div class="card" style="margin-top:14px;border:2px solid ${v.redeemable ? 'var(--good)' : '#e0b4b8'}">
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <div><div class="vcode" style="font-size:22px">${esc(v.code)}</div>
-        <strong>${esc(v.reward)}</strong><br><span class="muted">${esc(v.campaignTitle)} • ${esc(phone)}</span></div>
-        <span class="pill ${v.status==='redeemed'?'redeemed':'issued'}">${v.status==='redeemed'?'REDEEMED':'ISSUED'}</span>
+    let html = `<div class="voucher" style="margin-top:16px"><div class="vinner" style="padding:22px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+        <div style="text-align:left">
+          <div class="vcode" style="font-size:24px;margin:0">${esc(v.code)}</div>
+          <strong style="font-family:'Syne',sans-serif;font-size:16px">${esc(v.reward)}</strong><br>
+          <span class="muted" style="font-size:12px">${esc(v.campaignTitle)} • ${esc(phone)}</span>
+        </div>
+        <span class="pill ${v.status==='redeemed'?'redeemed':'issued'}" style="font-size:12px">${v.status==='redeemed'?'REDEEMED':'VALID'}</span>
       </div>
-      <div class="list-item" style="margin-top:10px"><span>Issued</span><span class="muted">${v.issuedAt ? new Date(v.issuedAt).toLocaleString('en-GB',{timeZone:'Africa/Harare'}) : ''}</span></div>`;
+      <div class="list-item" style="margin-top:12px;font-size:12px"><span>Issued</span><span class="muted">${v.issuedAt ? new Date(v.issuedAt).toLocaleString('en-GB',{timeZone:'Africa/Harare'}) : ''}</span></div>`;
     if (v.status === 'redeemed') {
-      html += `<div class="list-item"><span>Redeemed at</span><span class="muted">${esc(v.redeemBranch || '—')} • ${v.redeemedAt ? new Date(v.redeemedAt).toLocaleString('en-GB',{timeZone:'Africa/Harare'}) : ''}</span></div>
-        <div class="msg err" style="display:block">✕ This voucher was already redeemed${v.redeemBranch ? ' at ' + esc(v.redeemBranch) : ''}. Do not give the reward again.</div></div>`;
+      html += `<div class="list-item" style="font-size:12px"><span>Redeemed at</span><span class="muted">${esc(v.redeemBranch || '—')} • ${v.redeemedAt ? new Date(v.redeemedAt).toLocaleString('en-GB',{timeZone:'Africa/Harare'}) : ''}</span></div>
+        <div class="msg err" style="display:block;margin-top:12px">✕ Already redeemed${v.redeemBranch ? ' at ' + esc(v.redeemBranch) : ''}. Do <b>not</b> give the reward again.</div></div></div>`;
     } else if (!v.redeemable) {
-      html += `<div class="msg err" style="display:block">✕ This voucher is past its collection deadline.</div></div>`;
+      html += `<div class="msg err" style="display:block;margin-top:12px">✕ Past its collection deadline — cannot redeem.</div></div></div>`;
     } else {
-      html += `<div class="msg ok" style="display:block">✓ Valid voucher — ready to redeem at ${esc(v.branchScope || 'any branch')}.</div>
-        <button class="btn" id="redeemBtn" style="margin-top:8px">CONFIRM REDEMPTION</button></div>`;
+      html += `<div class="msg ok" style="display:block;margin-top:12px">✓ Valid voucher — serve the reward now.</div>
+        <button class="btn" id="redeemBtn" style="margin-top:10px">CONFIRM REDEMPTION ✓</button></div></div>`;
     }
     $('result').innerHTML = html;
     const rb = $('redeemBtn');

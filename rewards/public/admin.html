@@ -4,35 +4,33 @@
 <title>Diamond Rewards — Admin</title>
 <link rel="stylesheet" href="/style.css"/>
 <style>
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-@media(max-width:800px){.grid2{grid-template-columns:1fr}}
-.camp{border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px;background:#fff}
-.camp h3{margin-bottom:4px}
-.tabs{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
-.tabs button{background:#fff;border:1px solid var(--line);border-radius:10px;padding:9px 16px;font-weight:650;cursor:pointer}
-.tabs button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.camp h3{font-family:'Syne',sans-serif}
+.vtable{max-height:340px;overflow:auto}
 </style>
 </head><body>
 <div class="wrap wide">
   <header class="brand">
     <div class="mark">D</div>
     <div><b>DIAMOND CHICKEN</b><small>REWARDS · MARKETING</small></div>
+    <span class="tag">Admin</span>
   </header>
 
   <div id="loginView">
-    <div class="card" style="max-width:380px;margin:40px auto">
-      <h1>Admin sign in</h1>
+    <div class="card" style="max-width:400px;margin:48px auto">
+      <div class="center" style="margin-bottom:18px"><div class="mark" style="margin:0 auto 12px">◆</div></div>
+      <h1 class="center" style="font-size:22px">Marketing admin</h1>
+      <p class="muted center" style="margin-bottom:8px">Manage promotions, vouchers & redemptions</p>
       <label for="email">EMAIL</label><input id="email" type="email" placeholder="admin@diamondchicken.co.zw"/>
       <label for="password">PASSWORD</label><input id="password" type="password"/>
-      <button class="btn" id="loginBtn" style="margin-top:18px">SIGN IN</button>
+      <button class="btn" id="loginBtn" style="margin-top:20px">SIGN IN →</button>
       <div class="msg" id="loginMsg"></div>
     </div>
   </div>
 
   <div id="appView" class="hidden">
     <div class="topbar">
-      <div><h1>Promotions</h1><p class="muted">Create controlled giveaways, issue vouchers, track redemptions.</p></div>
-      <div><span class="muted" id="who"></span> <button class="btn ghost sm" id="logoutBtn">Sign out</button></div>
+      <div><h1>Promotions</h1><p class="muted">Controlled giveaways — one QR, capped vouchers, single-use redemption.</p></div>
+      <div style="display:flex;align-items:center;gap:14px"><span class="pill on" id="who"></span> <button class="btn ghost sm" id="logoutBtn">Sign out</button></div>
     </div>
 
     <div class="tabs">
@@ -47,8 +45,9 @@
     </section>
 
     <section id="tab-new" class="hidden">
-      <div class="card" style="max-width:640px">
+      <div class="card" style="max-width:680px">
         <h2>New campaign</h2>
+        <p class="muted">One QR code is generated — share it anywhere. Only up to the voucher cap can claim.</p>
         <label>PROMOTION TITLE</label><input id="fTitle" placeholder="e.g. FREE 2-PIECE CHICKEN"/>
         <label>REWARD DESCRIPTION</label><input id="fReward" placeholder="What the customer receives"/>
         <div class="row">
@@ -61,8 +60,8 @@
           <div><label>PICKUP DEADLINE (optional)</label><input id="fPickup" type="datetime-local"/></div>
         </div>
         <label>DESCRIPTION (shown to customers)</label>
-        <textarea id="fDesc" rows="2" placeholder="Terms & conditions, e.g. one per customer, dine-in only…"></textarea>
-        <button class="btn" id="createBtn" style="margin-top:18px">CREATE CAMPAIGN</button>
+        <textarea id="fDesc" rows="2" placeholder="Terms & conditions, e.g. one per customer, valid at all branches…"></textarea>
+        <button class="btn" id="createBtn" style="margin-top:20px">CREATE CAMPAIGN →</button>
         <div class="msg" id="newMsg"></div>
       </div>
     </section>
@@ -76,27 +75,27 @@
         <div class="card">
           <h2>Add staff</h2>
           <label>NAME</label><input id="sName"/>
-          <label>ROLE</label><select id="sRole"><option value="staff">Staff (redeem vouchers)</option><option value="admin">Admin</option></select>
-          <label>PIN (for counter staff)</label><input id="sPin" type="password" maxlength="10" placeholder="4–6 digits"/>
-          <label>EMAIL + PASSWORD (for admin)</label>
+          <label>ROLE</label><select id="sRole"><option value="staff">Staff — redeem vouchers</option><option value="admin">Admin</option></select>
+          <label>PIN (counter staff)</label><input id="sPin" type="password" maxlength="10" placeholder="4–6 digits"/>
+          <label>EMAIL + PASSWORD (admin)</label>
           <input id="sEmail" type="email" placeholder="email"/>
           <input id="sPass" type="password" placeholder="password" style="margin-top:8px"/>
-          <button class="btn" id="addStaffBtn" style="margin-top:14px">ADD</button>
+          <button class="btn" id="addStaffBtn" style="margin-top:16px">ADD STAFF</button>
           <div class="msg" id="staffMsg"></div>
         </div>
       </div>
     </section>
   </div>
 
-  <div class="footer">Diamond Rewards • Diamond Chicken • KuWeX Studios</div>
+  <div class="footer">Diamond Chicken • Fresh. Crispy. Legendary.</div>
 </div>
 
-<div id="qrModal" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:50">
-  <div class="card" style="max-width:380px;text-align:center">
+<div id="qrModal" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;z-index:50;padding:20px">
+  <div class="card" style="max-width:400px;text-align:center">
     <h2>Campaign QR code</h2>
     <p class="muted" id="qrUrl" style="word-break:break-all;font-size:12px"></p>
-    <div class="qr"><img id="qrImg" alt="QR"/></div>
-    <p class="muted" style="font-size:12px">Print this on flyers, posters, WhatsApp & Facebook posts, and receipts.</p>
+    <div class="qr"><img id="qrImg" alt="QR code"/></div>
+    <p class="sub" style="margin-bottom:14px">Print on flyers, posters, WhatsApp, Facebook & receipts.<br>One code — all branches.</p>
     <button class="btn ghost" onclick="document.getElementById('qrModal').classList.add('hidden')">Close</button>
   </div>
 </div>
@@ -113,7 +112,6 @@ function api(path, opts = {}) {
 }
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function fmt(s){return s?new Date(s).toLocaleString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit',timeZone:'Africa/Harare'}):'—'}
-function toLocalInput(s){ if(!s) return ''; const d=new Date(s); d.setMinutes(d.getMinutes()-d.getTimezoneOffset()); return d.toISOString().slice(0,16); }
 function toISO(local){ return local ? new Date(local).toISOString() : null; }
 
 $('loginBtn').onclick = async () => {
@@ -125,45 +123,48 @@ $('email').addEventListener('keydown',e=>{if(e.key==='Enter')$('loginBtn').click
 $('password').addEventListener('keydown',e=>{if(e.key==='Enter')$('loginBtn').click()});
 $('logoutBtn').onclick=()=>{localStorage.removeItem('rewards.token');token='';location.reload()};
 
-function enterApp(){ $('loginView').classList.add('hidden'); $('appView').classList.remove('hidden'); $('who').textContent=user?.name||''; if(user?.role==='admin'){loadCampaigns();loadStaff();} else { showTab('camps'); } }
-document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
-function showTab(t){
-  document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('on',b.dataset.tab===t||(t==='new'&&b.dataset.tab==='new')));
-  ['camps','new','staff'].forEach(x=>$('tab-'+x).classList.toggle('hidden',x!==t));
-  if(t==='new')document.querySelector('.tabs button[data-tab="new"]').classList.add('on');
-  else document.querySelector('.tabs button[data-tab="camps"]').classList.remove('on')||document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('on',b.dataset.tab===(t==='staff'?'staff':'camps')));
-}
+function enterApp(){ $('loginView').classList.add('hidden'); $('appView').classList.remove('hidden'); $('who').textContent=user?.name||''; loadCampaigns(); loadStaff(); }
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on');
+  ['camps','new','staff'].forEach(x=>$('tab-'+x).classList.toggle('hidden',x!==b.dataset.tab));
+});
 
 async function loadCampaigns(){
   const j = await api('/api/campaigns');
   if(!j.success) return;
   campaigns = j.data;
-  let tc=0,tr=0,tn=0;
+  let tc=0,tn=0,tr=0;
   $('campList').innerHTML = campaigns.map(c=>{
-    tc+=c.max_vouchers; tr+=c.redeemedCount||0; tn+=c.claimedCount||0;
+    tc+=c.max_vouchers; tn+=c.claimedCount||0; tr+=c.redeemedCount||0;
     const pct=c.max_vouchers?Math.round(((c.claimedCount||0)/c.max_vouchers)*100):0;
     const issued=c.claimedCount||0, redeemed=c.redeemedCount||0;
     return `<div class="camp">
-      <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap">
+      <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:flex-start">
         <div><h3>${esc(c.title)}</h3><span class="muted">${esc(c.reward)}</span></div>
-        <span class="pill ${c.is_active?'on':'off'}">${c.is_active?'ACTIVE':'PAUSED'}</span>
+        <span class="pill ${c.is_active?'on':'paused'}">${c.is_active?'ACTIVE':'PAUSED'}</span>
       </div>
       <div class="bar"><i style="width:${pct}%"></i></div>
-      <div class="muted" style="font-size:12px;margin:6px 0 10px">${issued} claimed • ${redeemed} redeemed • ${c.max_vouchers-issued} remaining (${pct}%)</div>
-      <div class="muted" style="font-size:12px">Claims: ${fmt(c.claim_starts_at)} → ${fmt(c.claim_ends_at)} • Pickup by: ${fmt(c.pickup_ends_at)}<br>Branches: ${esc(c.branch_scope)}</div>
-      <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn ghost sm" onclick="showQr('${c.id}','${esc(c.slug)}')">QR code</button>
+      <div style="display:flex;gap:18px;flex-wrap:wrap;font-size:12px" class="muted">
+        <span><b style="color:var(--amber2)">${issued}</b> claimed</span>
+        <span><b style="color:var(--green)">${redeemed}</b> redeemed</span>
+        <span><b>${Math.max(0,c.max_vouchers-issued)}</b> remaining</span>
+        <span>${pct}% allocated</span>
+      </div>
+      <div class="sub" style="margin-top:10px">Claims ${fmt(c.claim_starts_at)} → ${fmt(c.claim_ends_at)} • Pickup by ${fmt(c.pickup_ends_at)}<br>Branches: ${esc(c.branch_scope)}</div>
+      <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn ghost sm" onclick="showQr('${c.id}','${esc(c.slug)}')">▣ QR code</button>
         <button class="btn ghost sm" onclick="toggleCamp('${c.id}',${!c.is_active})">${c.is_active?'Pause':'Resume'}</button>
         <button class="btn ghost sm" onclick="viewVouchers('${c.id}')">Vouchers</button>
       </div>
-      <div id="vq-${c.id}" class="hidden" style="margin-top:12px"></div>
+      <div id="vq-${c.id}" class="hidden vtable" style="margin-top:14px"></div>
     </div>`;
-  }).join('') || '<div class="card"><p class="muted">No campaigns yet — create your first promotion.</p></div>';
+  }).join('') || '<div class="card"><div class="empty"><div class="big">🎁</div><p>No campaigns yet — create your first promotion.</p></div></div>';
   $('totals').innerHTML = `
-    <div class="stat"><div class="cap">Total voucher cap</div><div class="num">${tc}</div></div>
-    <div class="stat"><div class="cap">Claimed</div><div class="num red">${tn}</div></div>
-    <div class="stat"><div class="cap">Redeemed</div><div class="num">${tr}</div></div>
-    <div class="stat"><div class="cap">Remaining</div><div class="num">${Math.max(0,tc-tn)}</div></div>`;
+    <div class="stat"><div class="cap">Total voucher cap</div><div class="num amber">${tc}</div><div class="foot">Across all campaigns</div></div>
+    <div class="stat"><div class="cap">Claimed</div><div class="num red">${tn}</div><div class="foot">Vouchers issued</div></div>
+    <div class="stat"><div class="cap">Redeemed</div><div class="num green">${tr}</div><div class="foot">Collected in store</div></div>
+    <div class="stat"><div class="cap">Remaining</div><div class="num">${Math.max(0,tc-tn)}</div><div class="foot">Available to claim</div></div>`;
 }
 
 window.showQr = async (id, slug) => {
@@ -177,8 +178,8 @@ window.viewVouchers = async (id) => {
   if(!el.classList.contains('hidden')){el.classList.add('hidden');return}
   const j = await api(`/api/campaigns/${id}/vouchers`);
   if(!j.success){el.innerHTML='<p class="muted">Failed to load</p>';el.classList.remove('hidden');return}
-  el.innerHTML = `<table><tr><th>Code</th><th>Phone</th><th>Status</th><th>Redeemed</th></tr>`+
-    j.data.map(v=>`<tr><td><b>${esc(v.code)}</b></td><td class="muted">${esc(v.phone.slice(0,4))}•••${esc(v.phone.slice(-2))}</td>
+  el.innerHTML = `<table><tr><th>Code</th><th>Phone</th><th>Status</th><th>Redeemed at</th></tr>`+
+    j.data.map(v=>`<tr><td><b style="font-family:monospace;color:var(--amber2)">${esc(v.code)}</b></td><td class="muted">${esc(v.phone.slice(0,4))}•••${esc(v.phone.slice(-2))}</td>
     <td><span class="pill ${v.status==='redeemed'?'redeemed':'issued'}">${v.status}</span></td>
     <td class="muted">${v.redeemBranch?esc(v.redeemBranch)+' • ':''}${fmt(v.redeemedAt)}</td></tr>`).join('')+`</table>`;
   el.classList.remove('hidden');
@@ -197,8 +198,8 @@ $('createBtn').onclick = async () => {
   if(!body.claimEndsAt){$('newMsg').className='msg err';$('newMsg').textContent='Claim closing date is required';return}
   const j = await api('/api/campaigns',{method:'POST',body});
   if(!j.success){$('newMsg').className='msg err';$('newMsg').textContent=j.error||'Failed';return}
-  $('newMsg').className='msg ok';$('newMsg').textContent='Campaign created!';
-  showTab('camps'); loadCampaigns();
+  $('newMsg').className='msg ok';$('newMsg').textContent='Campaign created — open it to get the QR code.';
+  document.querySelector('.tabs button[data-tab="camps"]').click(); loadCampaigns();
 };
 
 async function loadStaff(){
