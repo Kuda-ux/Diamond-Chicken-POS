@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Diamond Rewards — Admin</title>
+<link rel="stylesheet" href="/style.css"/>
+<style>
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:800px){.grid2{grid-template-columns:1fr}}
+.camp{border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px;background:#fff}
+.camp h3{margin-bottom:4px}
+.tabs{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
+.tabs button{background:#fff;border:1px solid var(--line);border-radius:10px;padding:9px 16px;font-weight:650;cursor:pointer}
+.tabs button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+</style>
+</head><body>
+<div class="wrap wide">
+  <header class="brand">
+    <div class="mark">D</div>
+    <div><b>DIAMOND CHICKEN</b><small>REWARDS · MARKETING</small></div>
+  </header>
+
+  <div id="loginView">
+    <div class="card" style="max-width:380px;margin:40px auto">
+      <h1>Admin sign in</h1>
+      <label for="email">EMAIL</label><input id="email" type="email" placeholder="admin@diamondchicken.co.zw"/>
+      <label for="password">PASSWORD</label><input id="password" type="password"/>
+      <button class="btn" id="loginBtn" style="margin-top:18px">SIGN IN</button>
+      <div class="msg" id="loginMsg"></div>
+    </div>
+  </div>
+
+  <div id="appView" class="hidden">
+    <div class="topbar">
+      <div><h1>Promotions</h1><p class="muted">Create controlled giveaways, issue vouchers, track redemptions.</p></div>
+      <div><span class="muted" id="who"></span> <button class="btn ghost sm" id="logoutBtn">Sign out</button></div>
+    </div>
+
+    <div class="tabs">
+      <button data-tab="camps" class="on">Campaigns</button>
+      <button data-tab="new">+ New campaign</button>
+      <button data-tab="staff">Staff</button>
+    </div>
+
+    <section id="tab-camps">
+      <div class="stats" id="totals"></div>
+      <div id="campList"></div>
+    </section>
+
+    <section id="tab-new" class="hidden">
+      <div class="card" style="max-width:640px">
+        <h2>New campaign</h2>
+        <label>PROMOTION TITLE</label><input id="fTitle" placeholder="e.g. FREE 2-PIECE CHICKEN"/>
+        <label>REWARD DESCRIPTION</label><input id="fReward" placeholder="What the customer receives"/>
+        <div class="row">
+          <div><label>MAXIMUM VOUCHERS</label><input id="fMax" type="number" min="1" value="100"/></div>
+          <div><label>PARTICIPATING BRANCHES</label><input id="fBranch" value="All Diamond Chicken branches"/></div>
+        </div>
+        <div class="row">
+          <div><label>CLAIM OPENS (optional)</label><input id="fStart" type="datetime-local"/></div>
+          <div><label>CLAIM CLOSES *</label><input id="fEnd" type="datetime-local"/></div>
+          <div><label>PICKUP DEADLINE (optional)</label><input id="fPickup" type="datetime-local"/></div>
+        </div>
+        <label>DESCRIPTION (shown to customers)</label>
+        <textarea id="fDesc" rows="2" placeholder="Terms & conditions, e.g. one per customer, dine-in only…"></textarea>
+        <button class="btn" id="createBtn" style="margin-top:18px">CREATE CAMPAIGN</button>
+        <div class="msg" id="newMsg"></div>
+      </div>
+    </section>
+
+    <section id="tab-staff" class="hidden">
+      <div class="grid2">
+        <div class="card">
+          <h2>Team</h2>
+          <div id="staffList"></div>
+        </div>
+        <div class="card">
+          <h2>Add staff</h2>
+          <label>NAME</label><input id="sName"/>
+          <label>ROLE</label><select id="sRole"><option value="staff">Staff (redeem vouchers)</option><option value="admin">Admin</option></select>
+          <label>PIN (for counter staff)</label><input id="sPin" type="password" maxlength="10" placeholder="4–6 digits"/>
+          <label>EMAIL + PASSWORD (for admin)</label>
+          <input id="sEmail" type="email" placeholder="email"/>
+          <input id="sPass" type="password" placeholder="password" style="margin-top:8px"/>
+          <button class="btn" id="addStaffBtn" style="margin-top:14px">ADD</button>
+          <div class="msg" id="staffMsg"></div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div class="footer">Diamond Rewards • Diamond Chicken • KuWeX Studios</div>
+</div>
+
+<div id="qrModal" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:50">
+  <div class="card" style="max-width:380px;text-align:center">
+    <h2>Campaign QR code</h2>
+    <p class="muted" id="qrUrl" style="word-break:break-all;font-size:12px"></p>
+    <div class="qr"><img id="qrImg" alt="QR"/></div>
+    <p class="muted" style="font-size:12px">Print this on flyers, posters, WhatsApp & Facebook posts, and receipts.</p>
+    <button class="btn ghost" onclick="document.getElementById('qrModal').classList.add('hidden')">Close</button>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let token = localStorage.getItem('rewards.token') || '';
+let user = null, campaigns = [];
+
+function api(path, opts = {}) {
+  opts.headers = { ...(opts.headers || {}), ...(token ? { Authorization: 'Bearer ' + token } : {}) };
+  if (opts.body && typeof opts.body === 'object') { opts.headers['Content-Type']='application/json'; opts.body=JSON.stringify(opts.body); }
+  return fetch(path, opts).then(r => r.json());
+}
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function fmt(s){return s?new Date(s).toLocaleString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit',timeZone:'Africa/Harare'}):'—'}
+function toLocalInput(s){ if(!s) return ''; const d=new Date(s); d.setMinutes(d.getMinutes()-d.getTimezoneOffset()); return d.toISOString().slice(0,16); }
+function toISO(local){ return local ? new Date(local).toISOString() : null; }
+
+$('loginBtn').onclick = async () => {
+  const j = await api('/api/auth/login', { method:'POST', body:{ email:$('email').value.trim(), password:$('password').value } });
+  if (!j.success) { $('loginMsg').className='msg err'; $('loginMsg').textContent=j.error||'Login failed'; return; }
+  token=j.data.token; user=j.data.user; localStorage.setItem('rewards.token',token); enterApp();
+};
+$('email').addEventListener('keydown',e=>{if(e.key==='Enter')$('loginBtn').click()});
+$('password').addEventListener('keydown',e=>{if(e.key==='Enter')$('loginBtn').click()});
+$('logoutBtn').onclick=()=>{localStorage.removeItem('rewards.token');token='';location.reload()};
+
+function enterApp(){ $('loginView').classList.add('hidden'); $('appView').classList.remove('hidden'); $('who').textContent=user?.name||''; if(user?.role==='admin'){loadCampaigns();loadStaff();} else { showTab('camps'); } }
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
+function showTab(t){
+  document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('on',b.dataset.tab===t||(t==='new'&&b.dataset.tab==='new')));
+  ['camps','new','staff'].forEach(x=>$('tab-'+x).classList.toggle('hidden',x!==t));
+  if(t==='new')document.querySelector('.tabs button[data-tab="new"]').classList.add('on');
+  else document.querySelector('.tabs button[data-tab="camps"]').classList.remove('on')||document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('on',b.dataset.tab===(t==='staff'?'staff':'camps')));
+}
+
+async function loadCampaigns(){
+  const j = await api('/api/campaigns');
+  if(!j.success) return;
+  campaigns = j.data;
+  let tc=0,tr=0,tn=0;
+  $('campList').innerHTML = campaigns.map(c=>{
+    tc+=c.max_vouchers; tr+=c.redeemedCount||0; tn+=c.claimedCount||0;
+    const pct=c.max_vouchers?Math.round(((c.claimedCount||0)/c.max_vouchers)*100):0;
+    const issued=c.claimedCount||0, redeemed=c.redeemedCount||0;
+    return `<div class="camp">
+      <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap">
+        <div><h3>${esc(c.title)}</h3><span class="muted">${esc(c.reward)}</span></div>
+        <span class="pill ${c.is_active?'on':'off'}">${c.is_active?'ACTIVE':'PAUSED'}</span>
+      </div>
+      <div class="bar"><i style="width:${pct}%"></i></div>
+      <div class="muted" style="font-size:12px;margin:6px 0 10px">${issued} claimed • ${redeemed} redeemed • ${c.max_vouchers-issued} remaining (${pct}%)</div>
+      <div class="muted" style="font-size:12px">Claims: ${fmt(c.claim_starts_at)} → ${fmt(c.claim_ends_at)} • Pickup by: ${fmt(c.pickup_ends_at)}<br>Branches: ${esc(c.branch_scope)}</div>
+      <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn ghost sm" onclick="showQr('${c.id}','${esc(c.slug)}')">QR code</button>
+        <button class="btn ghost sm" onclick="toggleCamp('${c.id}',${!c.is_active})">${c.is_active?'Pause':'Resume'}</button>
+        <button class="btn ghost sm" onclick="viewVouchers('${c.id}')">Vouchers</button>
+      </div>
+      <div id="vq-${c.id}" class="hidden" style="margin-top:12px"></div>
+    </div>`;
+  }).join('') || '<div class="card"><p class="muted">No campaigns yet — create your first promotion.</p></div>';
+  $('totals').innerHTML = `
+    <div class="stat"><div class="cap">Total voucher cap</div><div class="num">${tc}</div></div>
+    <div class="stat"><div class="cap">Claimed</div><div class="num red">${tn}</div></div>
+    <div class="stat"><div class="cap">Redeemed</div><div class="num">${tr}</div></div>
+    <div class="stat"><div class="cap">Remaining</div><div class="num">${Math.max(0,tc-tn)}</div></div>`;
+}
+
+window.showQr = async (id, slug) => {
+  $('qrUrl').textContent = `${location.origin}/c/${slug}`;
+  $('qrImg').src = `/api/campaigns/${id}/qr.png?t=${Date.now()}`;
+  $('qrModal').classList.remove('hidden');
+};
+window.toggleCamp = async (id, active) => { await api(`/api/campaigns/${id}`,{method:'PATCH',body:{is_active:active}}); loadCampaigns(); };
+window.viewVouchers = async (id) => {
+  const el = $('vq-'+id);
+  if(!el.classList.contains('hidden')){el.classList.add('hidden');return}
+  const j = await api(`/api/campaigns/${id}/vouchers`);
+  if(!j.success){el.innerHTML='<p class="muted">Failed to load</p>';el.classList.remove('hidden');return}
+  el.innerHTML = `<table><tr><th>Code</th><th>Phone</th><th>Status</th><th>Redeemed</th></tr>`+
+    j.data.map(v=>`<tr><td><b>${esc(v.code)}</b></td><td class="muted">${esc(v.phone.slice(0,4))}•••${esc(v.phone.slice(-2))}</td>
+    <td><span class="pill ${v.status==='redeemed'?'redeemed':'issued'}">${v.status}</span></td>
+    <td class="muted">${v.redeemBranch?esc(v.redeemBranch)+' • ':''}${fmt(v.redeemedAt)}</td></tr>`).join('')+`</table>`;
+  el.classList.remove('hidden');
+};
+
+$('createBtn').onclick = async () => {
+  const body = {
+    title:$('fTitle').value.trim(), reward:$('fReward').value.trim(),
+    description:$('fDesc').value.trim()||undefined,
+    maxVouchers:parseInt($('fMax').value,10),
+    branchScope:$('fBranch').value.trim()||'All Diamond Chicken branches',
+    claimStartsAt:toISO($('fStart').value)||undefined,
+    claimEndsAt:toISO($('fEnd').value),
+    pickupEndsAt:toISO($('fPickup').value)||undefined,
+  };
+  if(!body.claimEndsAt){$('newMsg').className='msg err';$('newMsg').textContent='Claim closing date is required';return}
+  const j = await api('/api/campaigns',{method:'POST',body});
+  if(!j.success){$('newMsg').className='msg err';$('newMsg').textContent=j.error||'Failed';return}
+  $('newMsg').className='msg ok';$('newMsg').textContent='Campaign created!';
+  showTab('camps'); loadCampaigns();
+};
+
+async function loadStaff(){
+  const j = await api('/api/staff');
+  if(!j.success)return;
+  $('staffList').innerHTML = `<table><tr><th>Name</th><th>Role</th><th>Status</th></tr>`+
+    j.data.map(s=>`<tr><td>${esc(s.name)}<br><span class="muted" style="font-size:11px">${esc(s.email||'PIN login')}</span></td>
+    <td>${esc(s.role)}</td><td><span class="pill ${s.isActive?'on':'off'}">${s.isActive?'active':'disabled'}</span></td></tr>`).join('')+`</table>`;
+}
+$('addStaffBtn').onclick = async () => {
+  const body = { name:$('sName').value.trim(), role:$('sRole').value,
+    pin:$('sPin').value||undefined, email:$('sEmail').value.trim()||undefined, password:$('sPass').value||undefined };
+  const j = await api('/api/staff',{method:'POST',body});
+  $('staffMsg').className='msg '+(j.success?'ok':'err'); $('staffMsg').textContent=j.success?'Added':(j.error||'Failed');
+  if(j.success){loadStaff();$('sName').value='';$('sPin').value='';$('sEmail').value='';$('sPass').value='';}
+};
+
+if(token){ api('/api/auth/me').then(j=>{ if(j.success&&j.data){user=j.data;enterApp();} else {token='';localStorage.removeItem('rewards.token');} }); }
+</script>
+</body></html>
