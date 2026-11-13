@@ -198,8 +198,8 @@ $('createBtn').onclick = async () => {
   if(!body.claimEndsAt){$('newMsg').className='msg err';$('newMsg').textContent='Claim closing date is required';return}
   const j = await api('/api/campaigns',{method:'POST',body});
   if(!j.success){$('newMsg').className='msg err';$('newMsg').textContent=j.error||'Failed';return}
-  $('newMsg').className='msg ok';$('newMsg').textContent='Campaign created — open it to get the QR code.';
   document.querySelector('.tabs button[data-tab="camps"]').click(); loadCampaigns();
+  showQr(j.data.id, j.data.slug);
 };
 
 async function loadStaff(){
